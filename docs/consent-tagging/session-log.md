@@ -1,0 +1,184 @@
+# Session Log
+
+## 2026-11-08 — Increment 1 Complete: Shell, Ingestion, Streaming SHA-256, Consented List & Full Acceptance Verification (T-01, T-02, T-03)
+
+### What Changed
+- Validated complete implementation of Increment 1 across Milestones 1–5:
+  - **App Shell & Browser Gate**: Enforces desktop Chrome/Edge (`window.showDirectoryPicker` check) with fallback screen for unsupported browsers (`R-05`). Strict CSP (`connect-src 'none'`) with zero external network calls.
+  - **Collection Ingestion (UC-01)**: Recursive directory traversal with forward-slash relative `asset_id` paths (`R-01`, `R-02`). 6-category asset classification (`image`, `video`, `audio`, `sensor`, `document`, `other`) with `dct-types.json` overrides.
+  - **Streaming Cryptographic Hashing**: Background Web Worker computing SHA-256 in 8 MB chunks via Web Crypto / FIPS 180-4 pure TS streaming, constant ~8 MB RAM ceiling (`R-04`). Computed hashes match sample collection exactly. Raw assets 100% byte-pristine (`R-38`).
+  - **Capture Time Extraction**: EXIF `DateTimeOriginal` in `Asia/Kolkata` -> UTC `Z` for images, `mvhd` creation time (`06:40:00Z`) for `VID-0005.mp4`, and `lastModified` fallback (`R-03`).
+  - **Consented List Parsing (UC-02)**: PapaParse + Zod schema validation enforcing rules L01–L04 with whole-list rejection. Dynamic selectability checking identifying minors (`is_minor == true`) and expired consents (`R-07`, `R-10`, `R-11`).
+  - **Privacy Invariants**: Participant names and contact hints remain strictly in volatile RAM. Verified zero PII in `localStorage`, `sessionStorage`, `IndexedDB`, URLs, or console logs (`R-08`).
+  - **Start Screen UI**: Interactive dashboard with folder picker, live asset table with status badges and hashing progress, consented list loader, summary cards, and participant table.
+  - Fixed test time-boundary mocks in unit and E2E suites to pin reference evaluation time (`2026-11-05T12:00:00Z`).
+
+### Tests Passing
+- `npm test`: **227/227 unit and integration tests pass** (16/16 test suites) with zero failures.
+- `npx playwright test`: **36 passed, 10 skipped** (browser capability skips) across Chromium and Firefox, 0 failed.
+- `npm run lint`: Exits 0, **0 errors, 0 warnings** (`eslint . --max-warnings 0`).
+- `npx tsc --noEmit`: Exits 0, **0 errors** under TypeScript strict mode.
+- `npm run build`: Production static bundle succeeds cleanly in `dist/`.
+- `python -m unittest tools/test_validate_export.py`: **20/20 test cases pass**.
+- **Acceptance Tests Formally Passed**:
+  - **T-01** (Folder loading & metadata): PASSED.
+  - **T-02** (Browser gate & air-gapped zero network): PASSED.
+  - **T-03** (Consented list loading & memory privacy): PASSED.
+
+### Deferred
+- Increment 2: Tagging workspace, multi-modal viewers (image zoom/pan, video/audio review-to-end tracking, sensor text, PDF), people panel with chips, bystander stepper (0–20), and "No Person" toggle.
+
+### Questions Added
+- None.
+
+## 2026-11-07 — Milestone 4: Start Screen UI, Folder Ingestion & Consented List Flow (UC-01 & UC-02)
+
+### What Changed
+- Implemented `src/ui/types.ts`: Interface definitions for UI state contracts (`FolderUiState`, `ListUiState`, `AppPipeline`, `StartScreenProps`).
+- Implemented `src/app/useAppPipeline.ts`: Reactive state management hook connecting folder scanning (`scanFolder`), background streaming SHA-256 Web Worker pool (`HashManager`), and consented list parsing (`loadConsentedList`) with selectability synchronization and memory safeguards.
+- Implemented `src/ui/FolderSection.tsx`: Collection folder picker, folder name badge, asset count badge, 6-type breakdown badges, unclassified 'other' files warning, and aggregate SHA-256 hashing progress bar.
+- Implemented `src/ui/AssetTable.tsx`: Tabular view of ingested assets with monospace forward-slash paths (`/`), semantic type badges, capture timestamps, source badges (`EXIF`, `MP4 header`, `capture time from file date`), and streaming full SHA-256 hash display.
+- Implemented `src/ui/ListSection.tsx`: Consented list file loader supporting file picker uploads and programmatic test automation with reset after change.
+- Implemented `src/ui/ListErrorBanner.tsx`: Whole-list error banner displaying rule codes (`[L01]`, `[L02]`, `[L03]`, `[L04]`, `[BOM_NOT_ALLOWED]`) and descriptive messages without leaking personal data.
+- Implemented `src/ui/ListSummary.tsx`: Summary metric cards for project name, project ID (read-only), total participants, selectable count, non-selectable count, and `list_valid_until`.
+- Implemented `src/ui/ParticipantTable.tsx`: In-memory participant table preview showing person ID, display name, contact hint, consent expiry, status chips, and selectability reasons (`minor`, `consent expired 3 Nov`).
+- Implemented `src/ui/StartScreen.tsx`: Top-level 3-step Start screen coordinator with collection reference input prefilled from folder name and "Start tagging" action button enabled when collection is verified.
+- Implemented `src/ui/index.ts`: Barrel export for all UI components and types.
+- Integrated `src/app/App.tsx`: Wired with `useAppPipeline` and `StartScreen` while preserving `#app-shell`, heading, "Air-Gapped" badge, and browser capability verification.
+- Implemented Vitest integration suite `tests/unit/ui/StartScreen.test.tsx` (7 tests covering initial layout, folder ingestion, hashing progress, list loading, whole-list refusal, and privacy invariant).
+- Implemented Playwright E2E suite `e2e/start-screen.spec.ts` (covering Acceptance Tests T-01, T-02, and T-03).
+- Updated `PROJECT.md`: Marked Milestone 3 and Milestone 4 as DONE.
+
+### Tests Passing
+- `npm test`: 197/197 unit and integration tests pass (14/14 test suites) including `tests/unit/ui/StartScreen.test.tsx`.
+- `npm run lint`: Exits 0, 0 errors, 0 warnings (`eslint . --max-warnings 0`).
+- `npx tsc --noEmit`: Exits 0, 0 errors under TypeScript strict mode.
+- `npm run build`: Production static bundle succeeds cleanly (`dist/` build in 8.87s).
+- `npx playwright test`: 32 passed, 6 skipped (browser capability skips) across Chromium and Firefox, including `e2e/start-screen.spec.ts`.
+- `python -m unittest tools/test_validate_export.py`: 20/20 test cases pass.
+
+### Deferred
+- Increment 2 (Milestone 5+): Three-pane tagging workspace (image/video/audio viewers, chips, steppers, bystanders) and metadata export generation.
+
+### Questions Added
+- None.
+
+## 2026-11-07 — Milestone 2: Folder Ingestion, Asset Classification, Capture Time Extraction & Streaming SHA-256 Hashing
+
+### What Changed
+- Implemented `src/folder/types.ts`: Core data structures (`AssetType`, `CustomTypeMap`, `CustomTypesFile`, `CaptureTimeSource`, `CaptureTimeResult`, `IngestedAsset`, `FolderScanResult`, `FolderScanOptions`, worker message contracts, `HashJob`, `AggregateProgress`).
+- Implemented `src/folder/classifier.ts`:
+  - 6-type classification (`image`, `video`, `audio`, `sensor`, `document`, `other`) covering default extensions per `app-design.md` §3.1.
+  - Safe parsing of `dct-types.json` with syntax validation, normalization, and warning tracking.
+  - Precedence handling for lab custom extension overrides.
+  - Native browser preview helper (`hasNativePreview`).
+- Implemented `src/folder/scanner.ts`:
+  - Recursive traversal of `FileSystemDirectoryHandle`.
+  - Platform-agnostic path normalization with `/` separators for `asset_id`.
+  - Automatic exclusion of hidden files/directories (`.git`, `.DS_Store`, `.dct-progress.json`, etc.) and export CSVs (`asset_export_*.csv`).
+  - Detection and parsing of root `dct-types.json` while excluding it from `assets[]`.
+  - Deterministic natural sorting of assets by `assetId`.
+- Implemented `src/folder/captureTime.ts`:
+  - EXIF `DateTimeOriginal` extraction using `exifr` with local timezone conversion (`VITE_CAPTURE_TIMEZONE` / `Asia/Kolkata` -> UTC `Z`), falling back to `file.lastModified` (`source: 'last_modified'`).
+  - MP4/MOV ISO BMFF `mvhd` header extraction using `mp4box` in 256 KB streaming chunks (`source: 'mp4box'`), verifying `06:40:00Z` on `VID-0005.mp4`.
+  - Pure date arithmetic and timezone conversion with two-pass DST refinement using native `Intl.DateTimeFormat`.
+  - Universal buffer and text reading helpers resilient in both browser and jsdom/test environments.
+- Implemented `src/folder/sha256.ts`:
+  - Pure TypeScript FIPS 180-4 streaming engine (`StreamingSha256`) operating in 8 MB chunks without WebAssembly or eval, 100% compliant with strict CSP (`script-src 'self'`).
+  - Pre-allocated 32-bit registers for constant ~8 MB RAM consumption even on multi-GB assets.
+- Implemented `src/folder/hashWorker.ts` and `src/folder/hashManager.ts`:
+  - Web Worker implementing dual-strategy hashing (native `SubtleCrypto` for <=8 MB, `StreamingSha256` for >8 MB).
+  - Concurrency pool manager enforcing strictly max 2 concurrent workers with FIFO queue.
+  - Per-file progress events, aggregate byte-level folder progress reporting, and graceful cancellation.
+  - Strict Rule 4 immutability: zero byte modifications, read-only file handle usage.
+- Implemented `src/folder/index.ts`: Barrel file exporting all folder module APIs.
+- Implemented comprehensive unit test suites in `tests/unit/folder/`:
+  - `tests/unit/folder/mockFileSystem.ts`: Mock FileSystemDirectoryHandle and FileSystemFileHandle with jsdom polyfills.
+  - `tests/unit/folder/classifier.test.ts`: 20 unit tests covering all formats, case insensitivity, `dct-types.json` parsing and overrides, and preview capabilities.
+  - `tests/unit/folder/scanner.test.ts`: 10 unit tests covering path normalization, ignore rules, sample collection simulation, recursion, and deterministic sorting.
+  - `tests/unit/folder/captureTime.test.ts`: 12 unit tests covering pure date/timezone conversions, `VID-0005.mp4` extraction (`06:40:00Z`), PNG fallback to `lastModified`, and error recovery.
+  - `tests/unit/folder/hashing.test.ts`: 17 unit tests verifying pure FIPS 180-4 vectors, byte-for-byte exact SHA-256 match on all 8 sample assets, worker pool max 2 concurrency, progress aggregation, cancellation, and Rule 4 immutability.
+
+### Tests Passing
+- `npm run lint`: Exits 0, 0 errors, 0 warnings (`eslint . --max-warnings 0`).
+- `npx tsc --noEmit`: Exits 0, 0 errors (TypeScript strict mode enforced with zero `any`).
+- `npm test`: 70/70 unit tests pass (100% pass across all 6 test suites).
+- `npm run build`: Production static bundle succeeds (`dist/` build in 2.75s).
+- `npx playwright test`: 30 passed, 4 skipped, 0 failed across Chromium and Firefox.
+- `python -m unittest tools/test_validate_export.py`: 20/20 test cases pass.
+
+### Deferred
+- Milestone 3: Consented list CSV parsing and L01–L04 validation rules.
+- Milestone 4: Start screen UI view integration, folder picker connection, and asset table presentation.
+
+### Questions Added
+- None.
+
+## 2026-11-07 — Milestone 1 (Iteration 2): Browser Capability Hardening & Adversarial Stress Immunity
+
+### What Changed
+- Hardened `src/app/capabilities.ts` (`isFileSystemAccessSupported`): Wrapped `window.showDirectoryPicker` property inspection in `try...catch { return false; }` to safely handle throwing accessors (`SecurityError`, `DOMException` in sandboxed iframes or restricted enterprise policy contexts).
+- Hardened `src/app/BrowserGate.tsx`: Added defensive evaluation of capability and `supportedOverride` (handling object wrapper overrides via `valueOf()` with `try...catch`), guaranteeing that `<BrowserGate>` never crashes React render and always gracefully presents `#browser-gate-unsupported`.
+- Augmented `tests/unit/browserGate.test.tsx`:
+  - Upgraded `afterEach` teardown with safe descriptor restoration (`Object.getOwnPropertyDescriptor` / `Object.defineProperty`).
+  - Added unit test verifying `isFileSystemAccessSupported()` returns `false` without throwing when `window.showDirectoryPicker` getter throws `SecurityError`.
+  - Added unit test verifying `<BrowserGate>` renders ONLY `#browser-gate-unsupported` without crashing when property access throws.
+  - Added unit test verifying `<BrowserGate>` handles throwing `supportedOverride` gracefully.
+- Augmented `e2e/t02-browser-network.spec.ts`:
+  - Added E2E test `T-02.8` verifying throwing property access on `window.showDirectoryPicker` in Chromium renders `#browser-gate-unsupported` without unhandled errors or DOM leakage.
+  - Optimized `T-02.4` wait state to `domcontentloaded`.
+- Hardened `e2e/t02-adversarial-csp.spec.ts`:
+  - Upgraded rogue server teardown in `afterAll` with `closeAllConnections?.()`.
+  - Expanded Invariant 3 cancellation error texts with `net::ERR_ABORTED` and `NS_BINDING_ABORTED`.
+  - Increased `securitypolicyviolation` event window to 500ms in `ADV-CSP-09`.
+  - Verified `ADV-CSP-04` beacon assertion handles both Chromium queueing and Firefox synchronous rejection under CSP.
+
+### Tests Passing
+- `npm run lint`: Exits 0, 0 errors, 0 warnings (`eslint . --max-warnings 0`).
+- `npx tsc --noEmit`: Exits 0, 0 errors (strict mode enforced).
+- `npm test`: 11/11 unit tests pass (100% pass across `tests/unit/browserGate.test.tsx` and `tests/unit/security/csp.test.ts`).
+- `npx vitest run --config .agents/teamwork/challenger_m1_1/vitest.stress.config.ts`: 8/8 adversarial stress unit tests pass with zero uncaught errors.
+- `npm run build`: Static production bundle in `dist/` builds cleanly.
+- `npx playwright test`: 30 passed, 4 skipped, 0 failed across Chromium and Firefox (Acceptance Test T-02 and adversarial CSP suites).
+- `npx playwright test --config .agents/teamwork/challenger_m1_1/playwright.stress.config.ts`: 6/6 corner cases pass (100% pass, zero unhandled errors).
+- `python -m unittest tools/test_validate_export.py`: 20/20 test cases pass.
+
+### Deferred
+- Milestone 2: Folder ingestion, recursive scanning, 6-type asset classification, Web Worker streaming SHA-256 hashing, and EXIF/MP4 capture time extraction.
+- Milestone 3: Consented list CSV parsing and L01–L04 validation rules.
+- Milestone 4: Start screen UI view integration and asset table.
+
+### Questions Added
+- None.
+
+## 2026-11-07 — Milestone 1: Toolchain Scaffold, Security / CSP, and Browser Gate
+
+
+### What Changed
+- Initialized project manifest (`package.json`) with React 18, Vite static build, TypeScript strict mode, Tailwind CSS, PostCSS, ESLint flat config, Vitest, Playwright, and core dependencies (`papaparse`, `zod`, `exifr`, `mp4box`, `hash-wasm`, `@types/wicg-file-system-access`).
+- Configured TypeScript (`tsconfig.json`, `tsconfig.node.json`) with `strict: true`, `noImplicitAny: true`, and path alias `@/*`.
+- Configured `vite.config.ts` (with `server: { hmr: false }` and strict CSP headers) and `vitest.config.ts`.
+- Configured `index.html` with canonical air-gapped Content Security Policy meta tag:
+  `default-src 'self'; img-src 'self' blob:; media-src blob:; frame-src blob:; object-src 'none'; connect-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'`.
+- Configured ESLint (`eslint.config.js`) enforcing `@typescript-eslint/no-explicit-any: error` and zero warnings.
+- Created ambient and window type augmentations (`src/types/mp4box.d.ts`, `src/types/file-system-access.d.ts`, `src/vite-env.d.ts`).
+- Implemented capability detection (`src/app/capabilities.ts`) for `window.showDirectoryPicker`.
+- Implemented `BrowserGate.tsx` displaying the exact requirement screen in unsupported browsers:
+  `"This tool requires desktop Google Chrome or Microsoft Edge to access local folders directly."` and mounting `App.tsx` shell in supported browsers.
+- Implemented unit tests (`tests/unit/browserGate.test.tsx`, `tests/unit/security/csp.test.ts`) and Playwright E2E suite (`e2e/t02-browser-network.spec.ts`).
+
+### Tests Passing
+- `npm run lint`: Exits 0, 0 errors, 0 warnings.
+- `npx tsc --noEmit`: Exits 0, 0 errors.
+- `npm test`: 8/8 unit tests pass across `tests/unit/security/csp.test.ts` and `tests/unit/browserGate.test.tsx`.
+- `npm run build`: Static build in `dist/` succeeds with 0 errors.
+- `npx playwright test`: 11 passed, 3 skipped (browser targets), 0 failed across Chromium and Firefox verifying Acceptance Test T-02, zero network requests under CSP, and browser gate fallback.
+- `python -m unittest tools/test_validate_export.py`: 20/20 test cases pass.
+
+### Deferred
+- Milestone 2: Folder ingestion, recursive scanning, 6-type asset classification, Web Worker streaming SHA-256 hashing, and EXIF/MP4 capture time extraction.
+- Milestone 3: Consented list CSV parsing and L01–L04 validation rules.
+- Milestone 4: Start screen UI view integration and asset table.
+
+### Questions Added
+- None.

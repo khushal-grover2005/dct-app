@@ -1,0 +1,161 @@
+{
+  "list": "../consented_list.sample.csv",
+  "cases": {
+    "valid_sample.csv": {
+      "now": "2026-11-05T12:00:00Z",
+      "error_codes": [],
+      "warning_codes": [
+        "W02"
+      ]
+    },
+    "e01_unknown_column.csv": {
+      "now": "2026-11-05T12:00:00Z",
+      "error_codes": [
+        "E01"
+      ],
+      "warning_codes": []
+    },
+    "e02_uppercase_uuid.csv": {
+      "now": "2026-11-05T12:00:00Z",
+      "error_codes": [
+        "E02",
+        "E04"
+      ],
+      "warning_codes": [
+        "W02"
+      ]
+    },
+    "e03_wrong_project.csv": {
+      "now": "2026-11-05T12:00:00Z",
+      "error_codes": [
+        "E03"
+      ],
+      "warning_codes": [
+        "W02"
+      ]
+    },
+    "e04_unknown_person.csv": {
+      "now": "2026-11-05T12:00:00Z",
+      "error_codes": [
+        "E04"
+      ],
+      "warning_codes": [
+        "W02"
+      ]
+    },
+    "e05_someone_elses_consent.csv": {
+      "now": "2026-11-05T12:00:00Z",
+      "error_codes": [
+        "E05"
+      ],
+      "warning_codes": [
+        "W02"
+      ]
+    },
+    "e06_minor.csv": {
+      "now": "2026-11-05T12:00:00Z",
+      "error_codes": [
+        "E06"
+      ],
+      "warning_codes": [
+        "W02"
+      ]
+    },
+    "e07_expired_consent.csv": {
+      "now": "2026-11-05T12:00:00Z",
+      "error_codes": [
+        "E07"
+      ],
+      "warning_codes": [
+        "W02"
+      ]
+    },
+    "e08_after_list_validity.csv": {
+      "now": "2026-11-10T00:00:00Z",
+      "error_codes": [
+        "E08"
+      ],
+      "warning_codes": []
+    },
+    "e09_person_without_consent.csv": {
+      "now": "2026-11-05T12:00:00Z",
+      "error_codes": [
+        "E09"
+      ],
+      "warning_codes": [
+        "W02"
+      ]
+    },
+    "e10_same_person_twice.csv": {
+      "now": "2026-11-05T12:00:00Z",
+      "error_codes": [
+        "E10"
+      ],
+      "warning_codes": [
+        "W02"
+      ]
+    },
+    "e11_bystander_alone.csv": {
+      "now": "2026-11-05T12:00:00Z",
+      "error_codes": [
+        "E11"
+      ],
+      "warning_codes": [
+        "W02"
+      ]
+    },
+    "e12_bad_asset_type.csv": {
+      "now": "2026-11-05T12:00:00Z",
+      "error_codes": [
+        "E12"
+      ],
+      "warning_codes": [
+        "W02"
+      ]
+    },
+    "e13_local_time.csv": {
+      "now": "2026-11-05T12:00:00Z",
+      "error_codes": [
+        "E13"
+      ],
+      "warning_codes": [
+        "W02"
+      ]
+    },
+    "e14_two_collections.csv": {
+      "now": "2026-11-05T12:00:00Z",
+      "error_codes": [
+        "E14"
+      ],
+      "warning_codes": [
+        "W02"
+      ]
+    },
+    "e15_bad_hash.csv": {
+      "now": "2026-11-05T12:00:00Z",
+      "error_codes": [
+        "E15"
+      ],
+      "warning_codes": [
+        "W02"
+      ]
+    },
+    "e16_rows_disagree.csv": {
+      "now": "2026-11-05T12:00:00Z",
+      "error_codes": [
+        "E16"
+      ],
+      "warning_codes": [
+        "W02"
+      ]
+    },
+    "w01_no_hash.csv": {
+      "now": "2026-11-05T12:00:00Z",
+      "error_codes": [],
+      "warning_codes": [
+        "W01",
+        "W02"
+      ]
+    }
+  }
+}

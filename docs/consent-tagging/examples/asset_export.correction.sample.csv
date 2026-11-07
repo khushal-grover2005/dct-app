@@ -1,0 +1,2 @@
+export_id,exported_at,collection_ref,project_id,asset_id,asset_type,captured_at,content_sha256,row_type,person_id,consent_id,bystander_count
+4c5d6e7f-8a9b-4c0d-9e1f-2a3b4c5d6e7f,2026-11-05T09:00:00Z,LAB-A-2026-11-04-01,6f1c2a8e-4b7d-4c1a-9e2f-3a5b7c9d1e01,IMG-0002.png,image,2026-11-04T06:05:40Z,0caf0360e7391643e7fd419ae9f7bb489fab57e0ac0932342d91acab5a0a2896,person,3f1c9d2a-1b2c-4d3e-8f4a-5b6c7d8e9fa1,9b2e4f6a-8c0d-4e1f-a2b3-c4d5e6f70101,

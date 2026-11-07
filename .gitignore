@@ -1,0 +1,10 @@
+node_modules
+dist
+dist-ssr
+*.local
+test-results
+playwright-report
+blob-report
+__pycache__
+*.pyc
+.DS_Store
