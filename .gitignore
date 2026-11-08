@@ -8,3 +8,8 @@ blob-report
 __pycache__
 *.pyc
 .DS_Store
+
+# Agent internal files & prompt drafts
+.agents/
+*prompt*
+
