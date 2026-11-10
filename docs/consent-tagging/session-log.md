@@ -1,5 +1,43 @@
 # Session Log
 
+## 2026-11-10 — Increment 2 Complete: Tagging Workspace, Multi-Modal Viewers, Debounced Progress File & Full Acceptance Verification (T-04, T-05, T-06, T-15)
+
+### What Changed
+- Implemented three-pane **Tagging Workspace** (`src/tagging/`) with additive view switching from `src/app/App.tsx` (`'start' | 'workspace'`) and `Back to Start` flushing progress while preserving Increment 1 Start Screen:
+  - `src/tagging/types.ts`, `src/tagging/selectors.ts`, `src/tagging/reducer.ts`, `src/tagging/useTaggingWorkspace.ts`: Immutable tagging state machine enforcing `R-10..R-21`, `R-40`, `R-41` — idempotent person selection (no duplicate IDs, zero manual ID inputs per `Rule 3`), per-asset minor/expired/`list_valid_until` selectability gating, bystander stepper `0..20`, `"bystander only — delete this file"` error state, mutually exclusive `"No person"` toggle, video/audio review-to-end & external confirmation tracking, and asset state/type/path filters.
+  - `src/tagging/AssetListPane.tsx`: Left pane showing image and first-frame video thumbnails (or type icons), status/bystander badges, `X of Y done` counter & progress bar, status/type filters, path filter, and accessible selection.
+  - `src/tagging/PeoplePanel.tsx`: Right pane showing modality-specific headings (incl. `"People heard in this recording"` for audio), live per-asset selectability evaluation (`minor`, `consent expired 3 Nov`, R-12 post-`list_valid_until` banner + newer-list trigger), name/contact-hint search (`/` focus, `Enter` select first match), removable chips, bystander stepper, and `"No person"` toggle.
+  - `src/tagging/TaggingWorkspace.tsx`: Pointer-resizable 3-pane layout (`1280×720+`), subheader with background hashing & auto-save status, and global keyboard shortcuts (`↑`/`↓`/`←`/`→`, `Space`, `+`/`-`/`0`, `/`, `n`, `b`).
+- Implemented **Multi-Modal Viewers** (`src/viewers/`):
+  - `src/viewers/ImageViewer.tsx`: `blob:` image viewer with zoom (`25%..500%`, `+`/`-`/`0`, wheel), drag-to-pan, 90° rotation, and automatic decode-failure fallback.
+  - `src/viewers/VideoViewer.tsx`: `<video>` player with scrubbing, speed (`0.5×`–`2×`), `±1f` (`1/30s`) frame stepping, furthest-played / play-to-end tracking, and external-review confirmation.
+  - `src/viewers/AudioViewer.tsx`: Offline Web Audio API waveform canvas with click-to-scrub, playback speed (`0.5×`–`2×`), mute toggle, and review-to-end tracking.
+  - `src/viewers/SensorViewer.tsx`: 512 KB chunked text preview displaying first 200 lines + total line count for `.csv`/`.tsv`/`.json`/`.jsonl`/`.txt`/`.log` (tested 200/202 on `SNS-0007.csv`) and binary metadata card for `.bin`/`.edf`/`.dat`.
+  - `src/viewers/DocumentViewer.tsx` & `src/viewers/mimeTypes.ts`: Sandboxed `application/pdf` `blob:` iframe (`frame-src blob:`) and zero-copy typed `blob:` URL helper without mutating raw asset bytes (`Rule 4`).
+  - `src/viewers/FallbackViewer.tsx` & `src/viewers/CenterViewerPane.tsx`: Header with `asset_id`, type, `captured_at`, source badge, size, duration, Prev/Next navigation, plus standardized fallback UI (`"No preview in app — view this file in your usual viewer, then tag it here"`, external-review toggle for unplayable media like `.mkv` or decode-failed files, direct tagging for `.heic`).
+- Implemented identifiers-only debounced progress file writer (`src/folder/progressWriter.ts`) writing `.dct-progress.json` (`dct.progress` v1, temp file + atomic `move()` / fallback cleanup, serialized queue on `flush()`, zero names or contact hints per `Rule 8`).
+- Updated `vite.config.ts` (`fs.realpathSync` canonical root resolution) for reliable Vite HTML bundling across symlinked/junctioned directories.
+- Added automated test suites:
+  - Unit tests: `tests/unit/tagging/reducer.test.ts`, `tests/unit/folder/progressWriter.test.ts`, `tests/unit/tagging/TaggingWorkspace.test.tsx`, `tests/unit/viewers/viewers.test.tsx`, plus updated transition assertion in `tests/unit/ui/StartScreen.test.tsx`.
+  - Playwright E2E suite: `e2e/tagging-workspace.spec.ts` verifying **T-04, T-05, T-06, T-15**, **T-02** zero network requests, real video/audio playback to end, sensor/PDF/fallback viewers, keyboard shortcuts, `1280×720` resizable layout, and zero-PII `.dct-progress.json` persistence.
+
+### Tests Passing
+- `npm test`: **245/245 unit & integration tests pass** (20/20 test files).
+- `npm run e2e`: **39 passed, 13 skipped** (browser capability skips across Chromium & Firefox), 0 failed.
+- `npm run lint`: Exits 0, **0 errors, 0 warnings** (`eslint . --max-warnings 0`).
+- `npx tsc --noEmit`: Exits 0, **0 errors** (TypeScript strict mode).
+- `npm run build`: Production static bundle in `dist/` builds cleanly.
+- `python -m unittest tools/test_validate_export.py`: **20/20 test cases pass**.
+- **Acceptance Tests Formally Passed**: **T-04**, **T-05**, **T-06**, **T-15** (plus Increment 1 regression **T-01**, **T-02**, **T-03**).
+
+### Deferred
+- Increment 3: TypeScript validator port (`src/validation/validateExport.ts` + golden cases), review screen, and CSV sheet export.
+- Increment 4: Resume from `.dct-progress.json` on Start Screen, missing/new/changed detection, redaction & deletion correction flows.
+- Increment 5: Full accessibility audit (axe), 1,000-asset / 4 GB scale pass, filename PII warning, 7-day list-deletion reminder, and user guide.
+
+### Questions Added
+- None.
+
 ## 2026-11-08 — Increment 1 Complete: Shell, Ingestion, Streaming SHA-256, Consented List & Full Acceptance Verification (T-01, T-02, T-03)
 
 ### What Changed
