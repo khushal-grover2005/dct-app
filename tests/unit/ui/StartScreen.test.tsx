@@ -291,9 +291,12 @@ describe('StartScreen Integration Suite (UC-01 & UC-02)', () => {
     fireEvent.change(collInput, { target: { value: 'custom-ref-123' } });
     expect(collInput.value).toBe('custom-ref-123');
 
-    // Click proceed
+    // Click proceed -> enters Increment 2 Tagging Workspace and supports returning to Start
     await user.click(screen.getByTestId('proceed-button'));
-    expect(screen.getByText(/Tagging Workspace unlocks in Increment 2/i)).toBeInTheDocument();
+    expect(screen.getByTestId('tagging-workspace')).toBeInTheDocument();
+
+    await user.click(screen.getByTestId('back-to-start-btn'));
+    expect(screen.getByTestId('start-screen')).toBeInTheDocument();
   });
 
   it('handles user cancellation of directory picker without errors', async () => {

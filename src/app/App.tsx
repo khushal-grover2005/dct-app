@@ -1,9 +1,22 @@
-import type React from 'react';
+import React, { useState } from 'react';
 import { useAppPipeline } from './useAppPipeline';
 import { StartScreen } from '../ui/StartScreen';
+import { TaggingWorkspace, useTaggingWorkspace } from '../tagging';
 
 export const App: React.FC = () => {
   const pipeline = useAppPipeline();
+  const [currentScreen, setCurrentScreen] = useState<'start' | 'workspace'>('start');
+
+  const workspaceController = useTaggingWorkspace({
+    directoryHandle: pipeline.directoryHandle,
+    assets: pipeline.assets,
+    assetHashes: pipeline.assetHashes,
+    consentedList: pipeline.consentedList,
+    collectionRef: pipeline.collectionRef,
+  });
+
+  const effectiveScreen =
+    currentScreen === 'workspace' && pipeline.isReadyForTagging ? 'workspace' : 'start';
 
   return (
     <div
@@ -11,7 +24,7 @@ export const App: React.FC = () => {
       data-testid="app-shell"
       className="min-h-screen bg-slate-50 text-slate-900 flex flex-col min-w-[1280px]"
     >
-      <header className="border-b border-slate-200 bg-white px-6 py-4 shadow-sm flex items-center justify-between">
+      <header className="border-b border-slate-200 bg-white px-6 py-4 shadow-sm flex items-center justify-between flex-shrink-0">
         <div className="flex items-center space-x-3">
           <h1 className="text-xl font-semibold tracking-tight text-slate-900">
             Data Collection Tool
@@ -29,13 +42,27 @@ export const App: React.FC = () => {
           <div className="text-xs text-slate-500">
             Browser capability verified: File System Access API is active.
           </div>
-          <div className="text-sm text-slate-500 font-medium">Increment 1 Shell</div>
+          <div className="text-sm text-slate-500 font-medium">
+            {effectiveScreen === 'workspace' ? 'Tagging Workspace' : 'Setup & Collection'}
+          </div>
         </div>
       </header>
 
-      <main className="flex-1 p-6 max-w-7xl w-full mx-auto">
-        <StartScreen pipeline={pipeline} />
-      </main>
+      {effectiveScreen === 'workspace' ? (
+        <main className="flex-1 flex flex-col min-h-0 w-full">
+          <TaggingWorkspace
+            controller={workspaceController}
+            consentedList={pipeline.consentedList}
+            hashingProgress={pipeline.hashingProgress}
+            hashingCompleted={pipeline.hashingCompleted}
+            onBackToStart={() => setCurrentScreen('start')}
+          />
+        </main>
+      ) : (
+        <main className="flex-1 p-6 max-w-7xl w-full mx-auto">
+          <StartScreen pipeline={pipeline} onProceed={() => setCurrentScreen('workspace')} />
+        </main>
+      )}
     </div>
   );
 };
