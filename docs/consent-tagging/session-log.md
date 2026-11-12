@@ -1,5 +1,35 @@
 # Session Log
 
+## 2026-11-11 — Increment 3 (Track A): TypeScript Export Validator Port & T-07 Golden Cases Parity Suite
+
+### What Changed
+- Implemented `src/validation/types.ts`: Typed data contract v1 interfaces (`ValidationFinding`, `ValidationReport`, `ValidationReportJson`, `ExportCsvRow`, `ExportRowType`, `ListRuleCode`, `ExportRuleCode`, `ExportWarningCode`, `InputErrorCode`, `LoadedListContext`, `LoadedListPersonEntry`) enforcing identifier-only validation contexts (`AGENTS.md` Rule 8).
+- Implemented `src/validation/validateExport.ts`: Faithful rule-for-rule port of `tools/validate_export.py` covering:
+  - Consented list rules `L01–L04` in short-circuit order (`loadListFromParsedCsv`) plus in-memory `ConsentedListResult` conversion (`createListContextFromConsentedList`).
+  - Export rules `E01–E16` and warnings `W01–W02` across `validateExportCsv`, `validateExportWithConsentedList`, and `validateExportRowsWithConsentedList`.
+  - Strict UTF-8 BOM rejection (`BOM_NOT_ALLOWED`), RFC 4180 CSV parsing with whitespace trimming and extra-column handling (`parseCsvStrict`), calendar-validated ISO 8601 UTC `Z` microsecond timestamp parsing (`parseExportTimestampMicroseconds` / `parseExportTimestamp`), and JSON report serialization (`toJson()`).
+- Implemented `src/validation/index.ts`: Barrel export for the validation module.
+- Added automated test suites:
+  - `tests/unit/validation/goldenCases.test.ts` (**Acceptance Test T-07 / R-25**): Verifies all 18 golden cases in `docs/consent-tagging/examples/golden/expected.json` via both `validateExportCsv` and `validateExportWithConsentedList`, verifies zero participant PII in findings (`Rule 8`), and verifies field-for-field JSON output equality against `tools/validate_export.py --json`.
+  - `tests/unit/validation/validateExport.test.ts`: Mirrors all sample and rule tests in `tools/test_validate_export.py` (`L01–L04`, `E01–E16`, `W01–W02`, BOM guards, calendar rollover dates, and microsecond boundaries).
+
+### Tests Passing
+- `npm test`: **325/325 unit & integration tests pass** (22/22 test files, including 56 tests in `goldenCases.test.ts` and 24 tests in `validateExport.test.ts`).
+- `npm run e2e`: **39 passed, 13 skipped** (browser capability skips across Chromium & Firefox), 0 failed.
+- `npm run lint`: Exits 0, **0 errors, 0 warnings** (`eslint . --max-warnings 0`).
+- `npx tsc --noEmit`: Exits 0, **0 errors** (TypeScript strict mode).
+- `npm run build`: Production static bundle in `dist/` builds cleanly.
+- `python -m unittest tools/test_validate_export.py`: **20/20 test cases pass**.
+- **Acceptance Tests Formally Passed**: **T-07** (plus Increment 1 & 2 regressions **T-01–T-06**, **T-15**).
+
+### Deferred
+- Increment 3 (Track B on `feat/increment-3-review-export`): Sheet writer (`src/review/sheetWriter.ts`), Review & Save screen (`src/review/ReviewScreen.tsx`), Workspace/App navigation wiring, and Acceptance Tests **T-08** & **T-09**.
+- Increment 4: Resume from `.dct-progress.json` on Start Screen, missing/new/changed detection, redaction & deletion correction flows (**T-10–T-12**).
+- Increment 5: Full accessibility audit (axe), 1,000-asset / 4 GB scale pass, filename PII warning, 7-day list-deletion reminder, and user guide (**T-13, T-14, T-16**).
+
+### Questions Added
+- None.
+
 ## 2026-11-10 — Increment 2 Complete: Tagging Workspace, Multi-Modal Viewers, Debounced Progress File & Full Acceptance Verification (T-04, T-05, T-06, T-15)
 
 ### What Changed
