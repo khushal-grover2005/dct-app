@@ -14,6 +14,7 @@ interface TaggingWorkspaceProps {
   hashingProgress: AggregateProgress;
   hashingCompleted: boolean;
   onBackToStart: () => void;
+  onGoToReview?: () => void;
 }
 
 function clampWidth(val: number, min: number, max: number): number {
@@ -37,6 +38,7 @@ export const TaggingWorkspace: React.FC<TaggingWorkspaceProps> = ({
   hashingProgress,
   hashingCompleted,
   onBackToStart,
+  onGoToReview,
 }) => {
   const {
     state,
@@ -230,6 +232,19 @@ export const TaggingWorkspace: React.FC<TaggingWorkspaceProps> = ({
             <span className="text-slate-600">
               Project: <strong className="text-slate-900">{consentedList.projectName}</strong>
             </span>
+          )}
+          {onGoToReview && (
+            <button
+              type="button"
+              data-testid="go-to-review-btn"
+              onClick={async () => {
+                await flushProgress();
+                onGoToReview();
+              }}
+              className="rounded border border-sky-300 bg-sky-50 px-2.5 py-1 font-medium text-sky-800 hover:bg-sky-100"
+            >
+              Review &amp; Save
+            </button>
           )}
         </div>
 

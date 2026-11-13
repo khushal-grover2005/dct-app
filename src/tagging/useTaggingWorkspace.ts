@@ -3,6 +3,7 @@ import {
   buildProgressDocument,
   createDebouncedProgressSaver,
   type IngestedAsset,
+  type ProgressSaveEntry,
 } from '../folder';
 import type { ConsentedListResult } from '../list';
 import {
@@ -38,9 +39,11 @@ export interface TaggingWorkspaceController {
   activeIngestedAsset: IngestedAsset | null;
   stats: WorkspaceStats;
   fileLookup: Map<string, File>;
+  saves: ProgressSaveEntry[];
   saveStatus: ProgressSaveStatus;
   lastSaveError: string | null;
   flushProgress: () => Promise<void>;
+  recordSave: (entry: ProgressSaveEntry) => Promise<void>;
 }
 
 export function useTaggingWorkspace({
@@ -56,8 +59,10 @@ export function useTaggingWorkspace({
   );
   const [saveStatus, setSaveStatus] = useState<ProgressSaveStatus>('idle');
   const [lastSaveError, setLastSaveError] = useState<string | null>(null);
+  const [saves, setSaves] = useState<ProgressSaveEntry[]>([]);
 
   const prevDirHandleRef = useRef<FileSystemDirectoryHandle | null>(null);
+  const savesRef = useRef<ProgressSaveEntry[]>([]);
   const lastSavedDigestRef = useRef<string>('');
   const mountedRef = useRef(true);
 
@@ -91,6 +96,8 @@ export function useTaggingWorkspace({
 
     if (dirChanged) {
       lastSavedDigestRef.current = '';
+      savesRef.current = [];
+      setSaves([]);
       setSaveStatus('idle');
       setLastSaveError(null);
     }
@@ -154,7 +161,7 @@ export function useTaggingWorkspace({
       projectId: consentedList.projectId,
       listGeneratedAt: consentedList.listGeneratedAt,
       assets: state.assets,
-      saves: [],
+      saves,
     });
 
     const digest = JSON.stringify(doc);
@@ -170,7 +177,7 @@ export function useTaggingWorkspace({
         a.noPerson ||
         a.reviewedToEnd ||
         a.externalReviewConfirmed
-    );
+    ) || saves.length > 0;
     if (!hasAnyUserState && lastSavedDigestRef.current === '') {
       return;
     }
@@ -178,11 +185,43 @@ export function useTaggingWorkspace({
     lastSavedDigestRef.current = digest;
     setSaveStatus('saving');
     saverRef.current?.schedule(directoryHandle, doc);
-  }, [directoryHandle, consentedList, collectionRef, state.assets]);
+  }, [directoryHandle, consentedList, collectionRef, saves, state.assets]);
 
   const flushProgress = useCallback(async () => {
     await saverRef.current?.flush();
   }, []);
+
+  const recordSave = useCallback(
+    async (entry: ProgressSaveEntry) => {
+      if (!directoryHandle || !consentedList) {
+        throw new Error('A collection folder and consented list are required to record a save.');
+      }
+      const nextSaves = [...savesRef.current, entry];
+      savesRef.current = nextSaves;
+      setSaves(nextSaves);
+
+      const document = buildProgressDocument({
+        collectionRef: collectionRef || directoryHandle.name,
+        projectId: consentedList.projectId,
+        listGeneratedAt: consentedList.listGeneratedAt,
+        assets: state.assets,
+        saves: nextSaves,
+      });
+      lastSavedDigestRef.current = JSON.stringify(document);
+      setSaveStatus('saving');
+      saverRef.current?.schedule(directoryHandle, document);
+      const result = await saverRef.current?.flush();
+      if (!result?.written) {
+        const error = result?.error ?? 'Could not write progress file';
+        setSaveStatus('error');
+        setLastSaveError(error);
+        throw new Error(error);
+      }
+      setSaveStatus('saved');
+      setLastSaveError(null);
+    },
+    [collectionRef, consentedList, directoryHandle, state.assets]
+  );
 
   return {
     state,
@@ -192,8 +231,10 @@ export function useTaggingWorkspace({
     activeIngestedAsset,
     stats,
     fileLookup,
+    saves,
     saveStatus,
     lastSaveError,
     flushProgress,
+    recordSave,
   };
 }
