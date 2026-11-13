@@ -2,10 +2,13 @@ import React, { useState } from 'react';
 import { useAppPipeline } from './useAppPipeline';
 import { StartScreen } from '../ui/StartScreen';
 import { TaggingWorkspace, useTaggingWorkspace } from '../tagging';
+import type { TaggingWorkspaceController } from '../tagging';
+import type { ConsentedListResult } from '../list';
+import { ReviewScreen, useReviewExport } from '../review';
 
 export const App: React.FC = () => {
   const pipeline = useAppPipeline();
-  const [currentScreen, setCurrentScreen] = useState<'start' | 'workspace'>('start');
+  const [currentScreen, setCurrentScreen] = useState<'start' | 'workspace' | 'review'>('start');
 
   const workspaceController = useTaggingWorkspace({
     directoryHandle: pipeline.directoryHandle,
@@ -15,8 +18,7 @@ export const App: React.FC = () => {
     collectionRef: pipeline.collectionRef,
   });
 
-  const effectiveScreen =
-    currentScreen === 'workspace' && pipeline.isReadyForTagging ? 'workspace' : 'start';
+  const effectiveScreen = pipeline.isReadyForTagging ? currentScreen : 'start';
 
   return (
     <div
@@ -43,7 +45,11 @@ export const App: React.FC = () => {
             Browser capability verified: File System Access API is active.
           </div>
           <div className="text-sm text-slate-500 font-medium">
-            {effectiveScreen === 'workspace' ? 'Tagging Workspace' : 'Setup & Collection'}
+            {effectiveScreen === 'workspace'
+              ? 'Tagging Workspace'
+              : effectiveScreen === 'review'
+                ? 'Review & Save'
+                : 'Setup & Collection'}
           </div>
         </div>
       </header>
@@ -56,14 +62,70 @@ export const App: React.FC = () => {
             hashingProgress={pipeline.hashingProgress}
             hashingCompleted={pipeline.hashingCompleted}
             onBackToStart={() => setCurrentScreen('start')}
+            onGoToReview={() => setCurrentScreen('review')}
           />
         </main>
+      ) : effectiveScreen === 'review' && pipeline.consentedList && pipeline.directoryHandle ? (
+        <ReviewRoute
+          controller={workspaceController}
+          consentedList={pipeline.consentedList}
+          collectionRef={pipeline.collectionRef}
+          directoryHandle={pipeline.directoryHandle}
+          hashingCompleted={pipeline.hashingCompleted}
+          onBackToWorkspace={() => setCurrentScreen('workspace')}
+          onBackToStart={async () => {
+            await workspaceController.flushProgress();
+            setCurrentScreen('start');
+          }}
+        />
       ) : (
         <main className="flex-1 p-6 max-w-7xl w-full mx-auto">
           <StartScreen pipeline={pipeline} onProceed={() => setCurrentScreen('workspace')} />
         </main>
       )}
     </div>
+  );
+};
+
+interface ReviewRouteProps {
+  controller: TaggingWorkspaceController;
+  consentedList: ConsentedListResult;
+  collectionRef: string;
+  directoryHandle: FileSystemDirectoryHandle;
+  hashingCompleted: boolean;
+  onBackToWorkspace: () => void;
+  onBackToStart: () => Promise<void>;
+}
+
+const ReviewRoute: React.FC<ReviewRouteProps> = ({
+  controller,
+  consentedList,
+  collectionRef,
+  directoryHandle,
+  hashingCompleted,
+  onBackToWorkspace,
+  onBackToStart,
+}) => {
+  const review = useReviewExport({
+    assets: controller.state.assets,
+    consentedList,
+    collectionRef,
+    directoryHandle,
+    hashingCompleted,
+    recordSave: controller.recordSave,
+  });
+
+  return (
+    <ReviewScreen
+      review={review}
+      onBackToWorkspace={onBackToWorkspace}
+      onBackToStart={() => void onBackToStart()}
+      onJumpToAsset={(assetId) => {
+        controller.dispatch({ type: 'CLEAR_FILTERS' });
+        controller.dispatch({ type: 'SELECT_ASSET', assetId });
+        onBackToWorkspace();
+      }}
+    />
   );
 };
 

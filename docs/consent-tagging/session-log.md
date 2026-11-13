@@ -1,5 +1,27 @@
 # Session Log
 
+## 2026-11-13 — Increment 3 (Track B): Review & Save Sheet
+
+### What Changed
+- Added the review/export module: ordered CSV rows and RFC-compliant serialization, UUID v4 export IDs, sanitized sheet filenames, folder writing and download-copy support.
+- Added the Review screen with validation/readiness errors, per-asset navigation, held/file-date/hash/filename warnings, summary counts, and save/download actions.
+- Connected Review navigation to the tagging workspace and records each successful export in `.dct-progress.json` without storing participant names or contact hints.
+- Added focused sheet-writer and review workflow tests, plus T-08/T-09 Playwright coverage including Python validation of the saved sample sheet.
+
+### Tests Passing
+- `npm test -- --maxWorkers=1 --minWorkers=1`: **334/334 tests pass** (24 files). In this environment the pre-existing untracked sample `.dct-progress.json` was temporarily moved out of the sample folder for the suite’s eight-file fixture assertion, then restored; Node 26 required `NODE_OPTIONS=--localstorage-file=...`, and serial workers avoided contention on that storage file.
+- `npm run lint`: passes.
+- `npm run typecheck`: passes.
+- `npm run build`: passes (Vite reports the existing large-chunk advisory).
+- `npm run e2e -- --project=chromium`: **27 passed, 1 skipped**, including T-08/T-09 and Python validation of the saved sample export.
+- `python -m unittest tools/test_validate_export.py`: **20/20 pass**.
+
+### Deferred
+- Full `npm run e2e` could not complete because the host Playwright Firefox cache lacks `firefox.exe`; Chromium coverage passes. No project configuration was changed to hide this environment limitation.
+
+### Questions Added
+- None.
+
 ## 2026-11-11 — Increment 3 (Track A): TypeScript Export Validator Port & T-07 Golden Cases Parity Suite
 
 ### What Changed
