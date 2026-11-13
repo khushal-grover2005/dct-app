@@ -3,6 +3,7 @@ import {
   buildProgressDocument,
   createDebouncedProgressSaver,
   type IngestedAsset,
+  type ProgressDocument,
   type ProgressSaveEntry,
 } from '../folder';
 import type { ConsentedListResult } from '../list';
@@ -27,6 +28,7 @@ export interface UseTaggingWorkspaceInput {
   assetHashes: Record<string, string>;
   consentedList: ConsentedListResult | null;
   collectionRef: string;
+  initialProgress?: ProgressDocument | null;
 }
 
 export type ProgressSaveStatus = 'idle' | 'saving' | 'saved' | 'error';
@@ -43,7 +45,10 @@ export interface TaggingWorkspaceController {
   saveStatus: ProgressSaveStatus;
   lastSaveError: string | null;
   flushProgress: () => Promise<void>;
-  recordSave: (entry: ProgressSaveEntry) => Promise<void>;
+  recordSave: (
+    entry: ProgressSaveEntry,
+    assetsOverride?: AssetTagState[]
+  ) => Promise<void>;
 }
 
 export function useTaggingWorkspace({
@@ -52,6 +57,7 @@ export function useTaggingWorkspace({
   assetHashes,
   consentedList,
   collectionRef,
+  initialProgress = null,
 }: UseTaggingWorkspaceInput): TaggingWorkspaceController {
   const [state, dispatch] = useReducer(
     taggingReducer,
@@ -62,6 +68,8 @@ export function useTaggingWorkspace({
   const [saves, setSaves] = useState<ProgressSaveEntry[]>([]);
 
   const prevDirHandleRef = useRef<FileSystemDirectoryHandle | null>(null);
+  const appliedProgressRef = useRef<ProgressDocument | null>(null);
+  const suppressNextAutoWriteRef = useRef(false);
   const savesRef = useRef<ProgressSaveEntry[]>([]);
   const lastSavedDigestRef = useRef<string>('');
   const mountedRef = useRef(true);
@@ -89,12 +97,14 @@ export function useTaggingWorkspace({
     };
   }, []);
 
-  // Sync ingested folder assets and background SHA-256 updates into tagging state
+  // Sync ingested folder assets, resumed `.dct-progress.json`, and background SHA-256 updates
   useEffect(() => {
     const dirChanged = prevDirHandleRef.current !== directoryHandle;
     prevDirHandleRef.current = directoryHandle;
 
     if (dirChanged) {
+      appliedProgressRef.current = null;
+      suppressNextAutoWriteRef.current = false;
       lastSavedDigestRef.current = '';
       savesRef.current = [];
       setSaves([]);
@@ -102,13 +112,25 @@ export function useTaggingWorkspace({
       setLastSaveError(null);
     }
 
+    const shouldApplyInitialProgress =
+      initialProgress !== null && appliedProgressRef.current !== initialProgress;
+
+    if (shouldApplyInitialProgress) {
+      appliedProgressRef.current = initialProgress;
+      suppressNextAutoWriteRef.current = true;
+      const restoredSaves = [...initialProgress.saves];
+      savesRef.current = restoredSaves;
+      setSaves(restoredSaves);
+    }
+
     dispatch({
       type: 'SYNC_ASSETS',
       assets,
       assetHashes,
-      resetTags: dirChanged,
+      resetTags: dirChanged || shouldApplyInitialProgress,
+      progress: shouldApplyInitialProgress ? initialProgress : undefined,
     });
-  }, [directoryHandle, assets, assetHashes]);
+  }, [directoryHandle, assets, assetHashes, initialProgress]);
 
   // Fast File lookup by assetId
   const fileLookup = useMemo(() => {
@@ -165,19 +187,27 @@ export function useTaggingWorkspace({
     });
 
     const digest = JSON.stringify(doc);
+    if (suppressNextAutoWriteRef.current) {
+      suppressNextAutoWriteRef.current = false;
+      lastSavedDigestRef.current = digest;
+      return;
+    }
+
     if (digest === lastSavedDigestRef.current) {
       return;
     }
 
     // Avoid writing a blank progress file before user makes any tagging/review interaction
-    const hasAnyUserState = state.assets.some(
-      (a) =>
-        a.personIds.length > 0 ||
-        a.bystanderCount > 0 ||
-        a.noPerson ||
-        a.reviewedToEnd ||
-        a.externalReviewConfirmed
-    ) || saves.length > 0;
+    const hasAnyUserState =
+      state.assets.some(
+        (a) =>
+          a.personIds.length > 0 ||
+          a.bystanderCount > 0 ||
+          a.noPerson ||
+          a.reviewedToEnd ||
+          a.externalReviewConfirmed ||
+          a.state === 'deleted'
+      ) || saves.length > 0;
     if (!hasAnyUserState && lastSavedDigestRef.current === '') {
       return;
     }
@@ -192,19 +222,35 @@ export function useTaggingWorkspace({
   }, []);
 
   const recordSave = useCallback(
-    async (entry: ProgressSaveEntry) => {
+    async (entry: ProgressSaveEntry, assetsOverride?: AssetTagState[]) => {
       if (!directoryHandle || !consentedList) {
-        throw new Error('A collection folder and consented list are required to record a save.');
+        throw new Error(
+          'A collection folder and consented list are required to record a save.'
+        );
       }
       const nextSaves = [...savesRef.current, entry];
       savesRef.current = nextSaves;
       setSaves(nextSaves);
 
+      if (entry.held.length > 0) {
+        dispatch({ type: 'MARK_ASSETS_HELD_FROM_SAVE', assetIds: entry.held });
+      }
+
+      const targetAssets = (assetsOverride ?? state.assets).map((asset) =>
+        entry.held.includes(asset.assetId)
+          ? {
+              ...asset,
+              isHeldFromSave: true,
+              progressSha256: asset.sha256 ?? asset.progressSha256 ?? null,
+            }
+          : asset
+      );
+
       const document = buildProgressDocument({
         collectionRef: collectionRef || directoryHandle.name,
         projectId: consentedList.projectId,
         listGeneratedAt: consentedList.listGeneratedAt,
-        assets: state.assets,
+        assets: targetAssets,
         saves: nextSaves,
       });
       lastSavedDigestRef.current = JSON.stringify(document);

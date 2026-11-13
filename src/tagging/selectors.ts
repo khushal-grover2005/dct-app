@@ -27,6 +27,9 @@ export function isAssetDone(asset: AssetTagState): boolean {
   if (asset.state === 'deleted') {
     return true;
   }
+  if (asset.presenceStatus === 'missing' || asset.presenceStatus === 'changed') {
+    return false;
+  }
   if (isBystanderOnly(asset)) {
     return false;
   }
@@ -40,6 +43,36 @@ export function isAssetDone(asset: AssetTagState): boolean {
 export function getAssetStatusInfo(asset: AssetTagState): AssetStatusInfo {
   const hasBystanders = asset.bystanderCount > 0;
   const done = isAssetDone(asset);
+
+  if (asset.state === 'deleted') {
+    return {
+      primaryStatus: 'deleted',
+      label: 'deleted',
+      variant: 'neutral',
+      isDone: true,
+      hasBystanders: false,
+    };
+  }
+
+  if (asset.presenceStatus === 'missing') {
+    return {
+      primaryStatus: 'missing',
+      label: 'missing',
+      variant: 'error',
+      isDone: false,
+      hasBystanders,
+    };
+  }
+
+  if (asset.presenceStatus === 'changed') {
+    return {
+      primaryStatus: 'changed',
+      label: 'changed — check tags',
+      variant: 'warning',
+      isDone: false,
+      hasBystanders,
+    };
+  }
 
   if (isBystanderOnly(asset)) {
     return {
@@ -100,15 +133,27 @@ export function matchesStatusFilter(
     case 'not_done':
       return !isAssetDone(asset);
     case 'untagged':
-      return asset.personIds.length === 0 && asset.bystanderCount === 0 && !asset.noPerson;
+      return (
+        asset.state === 'active' &&
+        asset.presenceStatus !== 'missing' &&
+        asset.personIds.length === 0 &&
+        asset.bystanderCount === 0 &&
+        !asset.noPerson
+      );
     case 'tagged':
-      return asset.personIds.length > 0;
+      return asset.state === 'active' && asset.personIds.length > 0;
     case 'bystanders':
-      return asset.bystanderCount > 0;
+      return asset.state === 'active' && asset.bystanderCount > 0;
     case 'bystander_only':
-      return isBystanderOnly(asset);
+      return asset.state === 'active' && isBystanderOnly(asset);
     case 'no_person':
-      return asset.noPerson;
+      return asset.state === 'active' && asset.noPerson;
+    case 'missing':
+      return asset.state === 'active' && asset.presenceStatus === 'missing';
+    case 'changed':
+      return asset.state === 'active' && asset.presenceStatus === 'changed';
+    case 'deleted':
+      return asset.state === 'deleted';
   }
 }
 
@@ -142,8 +187,22 @@ export function computeWorkspaceStats(assets: AssetTagState[]): WorkspaceStats {
   let bystanderCount = 0;
   let bystanderOnlyCount = 0;
   let notReviewedCount = 0;
+  let missingCount = 0;
+  let changedCount = 0;
+  let deletedCount = 0;
 
   for (const asset of assets) {
+    if (asset.state === 'deleted') {
+      deletedCount++;
+      doneCount++;
+      continue;
+    }
+    if (asset.presenceStatus === 'missing') {
+      missingCount++;
+    }
+    if (asset.presenceStatus === 'changed') {
+      changedCount++;
+    }
     if (isAssetDone(asset)) {
       doneCount++;
     }
@@ -160,7 +219,7 @@ export function computeWorkspaceStats(assets: AssetTagState[]): WorkspaceStats {
       taggedCount++;
     } else if (asset.noPerson) {
       noPersonCount++;
-    } else if (asset.bystanderCount === 0) {
+    } else if (asset.bystanderCount === 0 && asset.presenceStatus !== 'missing') {
       untaggedCount++;
     }
   }
@@ -174,6 +233,9 @@ export function computeWorkspaceStats(assets: AssetTagState[]): WorkspaceStats {
     bystanderCount,
     bystanderOnlyCount,
     notReviewedCount,
+    missingCount,
+    changedCount,
+    deletedCount,
   };
 }
 

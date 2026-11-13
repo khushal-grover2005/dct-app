@@ -1,4 +1,12 @@
-import type { IngestedAsset, AggregateProgress, CustomTypeMap } from '../folder';
+import type {
+  IngestedAsset,
+  AggregateProgress,
+  CustomTypeMap,
+  ProgressDocument,
+  ProgressReconciliationResult,
+  ProgressSaveEntry,
+  ListDeletionReminderStatus,
+} from '../folder';
 import type { ConsentedListResult, ListValidationError } from '../list';
 
 export interface FolderUiState {
@@ -30,6 +38,12 @@ export interface AppPipeline {
   collectionRef: string;
   setCollectionRef: (ref: string) => void;
 
+  // Resume / Progress state (UC-05, R-09, R-22..R-24, R-37)
+  detectedProgress: ProgressDocument | null;
+  progressReadError: string | null;
+  reconciliation: ProgressReconciliationResult | null;
+  listDeletionReminder: ListDeletionReminderStatus;
+
   // Hashing state
   hashingProgress: AggregateProgress;
   hashingCompleted: boolean;
@@ -46,6 +60,8 @@ export interface AppPipeline {
   openFolderFromHandle: (handle: FileSystemDirectoryHandle) => Promise<void>;
   loadListFromFile: (file: File) => Promise<void>;
   loadListFromText: (csvText: string, fileName?: string) => void;
+  markFilesDeleted: (assetIds: string[]) => void;
+  updateRedactedAssetFile: (assetId: string, file: File, newSha256: string) => void;
   resetAll: () => void;
 
   // Derived readiness
@@ -54,5 +70,7 @@ export interface AppPipeline {
 
 export interface StartScreenProps {
   pipeline: AppPipeline;
+  savedEntries?: ProgressSaveEntry[];
   onProceed?: () => void;
+  onGoToCorrections?: () => void;
 }

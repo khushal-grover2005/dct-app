@@ -1,5 +1,31 @@
 # Session Log
 
+## 2026-11-13 — Increment 4: Resume, Corrections & Deletion Requests
+
+### What Changed
+- Added `.dct-progress.json` reading, Zod validation, folder reconciliation (`missing`, `untagged`, `changed — check tags`), active held asset resolution, and 7-day list deletion reminder computation in `src/folder/progressReader.ts`, `src/folder/fsHelpers.ts`, and `src/folder/sha256.ts`.
+- Wired resume detection, `RESUME_MISMATCH` enforcement across both folder-first and list-first open orders, held-state tracking, and `ResumeBanner` on `src/ui/StartScreen.tsx` and `src/app/useAppPipeline.ts`.
+- Updated `src/tagging/` (`types.ts`, `selectors.ts`, `reducer.ts`, `useTaggingWorkspace.ts`, `AssetListPane.tsx`, `PeoplePanel.tsx`, `TaggingWorkspace.tsx`) and `src/viewers/CenterViewerPane.tsx` to restore saved tags on resume, flag missing/changed/untagged assets, lock held bystander decrements above 0 until redaction or deletion (R-34), and exclude deleted assets from non-applicable review warnings.
+- Implemented `src/corrections/` (`types.ts`, `correctionSheetWriter.ts`, `useCorrections.ts`, `CorrectionsScreen.tsx`, `index.ts`) and routed `/corrections` in `src/app/App.tsx`:
+  - Held asset resolution: **I redacted it** re-hashes from disk via File System Access API, refuses unchanged SHA-256, and clears bystander count while keeping tagged people (R-31); **I deleted it** checks file removal or deletes after single confirmation and records `state = 'deleted'` (R-32).
+  - Deletion requests: paste or load `asset_id`s, categorize found vs not found in folder, single-confirmation batch removal, and `deleted` correction rows (R-35, R-36).
+  - Correction export: builds and validates a correction-only sheet with same `collection_ref`, new `export_id`, collision-safe filename, and `.dct-progress.json` `saves[]` tracking (R-33).
+- Added unit tests (`tests/unit/folder/progressReader.test.ts`, `tests/unit/corrections/correctionSheetWriter.test.ts`, `tests/unit/corrections/useCorrections.test.tsx`, `tests/unit/tagging/resumeReducer.test.ts`) and Chromium E2E tests (`e2e/corrections-resume.spec.ts`) covering T-10, T-11, T-12, and R-37.
+
+### Tests Passing
+- `npm run lint` (`eslint . --max-warnings 0`): passes (0 errors, 0 warnings).
+- `npx tsc --noEmit`: passes.
+- `npm run build`: passes (`dist/` built cleanly).
+- `npm test` (single worker): **350/350 tests pass** across **28/28 files**.
+- `npx playwright test --project=chromium`: **31 passed, 1 skipped** (Firefox-only T-02.5 check skipped in Chromium), including T-10, T-11, T-12, and T-14 (R-37), with `tools/validate_export.py` reporting `VALID: 1 rows, 1 assets, 0 errors, 0 warnings` on saved redaction and deletion correction sheets.
+- `python -m unittest tools/test_validate_export.py`: **20/20 pass**.
+
+### Deferred
+- Full multi-browser `npm run e2e` remains Chromium-only on this host because Playwright's Firefox executable is missing from the local browser cache.
+
+### Questions Added
+- None.
+
 ## 2026-11-13 — Increment 3 (Track B): Review & Save Sheet
 
 ### What Changed

@@ -5,6 +5,10 @@ import {
   AggregateProgress,
   HashManager,
   scanFolder,
+  readProgressFile,
+  reconcileFolderWithProgress,
+  isListDeletionReminderDue,
+  type ProgressDocument,
 } from '../folder';
 import {
   ConsentedListResult,
@@ -35,6 +39,10 @@ export function useAppPipeline(options?: UseAppPipelineOptions): AppPipeline {
   const [folderWarnings, setFolderWarnings] = useState<string[]>([]);
   const [collectionRef, setCollectionRef] = useState('');
 
+  // Resume / Progress file state
+  const [detectedProgress, setDetectedProgress] = useState<ProgressDocument | null>(null);
+  const [progressReadError, setProgressReadError] = useState<string | null>(null);
+
   // Hashing state
   const [hashingProgress, setHashingProgress] = useState<AggregateProgress>(INITIAL_PROGRESS);
   const [hashingCompleted, setHashingCompleted] = useState(false);
@@ -48,6 +56,13 @@ export function useAppPipeline(options?: UseAppPipelineOptions): AppPipeline {
 
   // References
   const hashManagerRef = useRef<HashManager | null>(null);
+  const detectedProgressRef = useRef<ProgressDocument | null>(null);
+  const consentedListRef = useRef<ConsentedListResult | null>(null);
+  const assetsRef = useRef<IngestedAsset[]>([]);
+
+  detectedProgressRef.current = detectedProgress;
+  consentedListRef.current = consentedList;
+  assetsRef.current = assets;
 
   // Web Worker cleanup on unmount
   useEffect(() => {
@@ -70,45 +85,74 @@ export function useAppPipeline(options?: UseAppPipelineOptions): AppPipeline {
       setFolderName(handle.name);
       setFolderScanning(true);
       setFolderWarnings([]);
+      setDetectedProgress(null);
+      setProgressReadError(null);
       setHashingCompleted(false);
       setHashingProgress(INITIAL_PROGRESS);
       setAssetHashes({});
 
       try {
-        const scanResult: FolderScanResult = await scanFolder(handle);
+        const [scanResult, progressRead]: [
+          FolderScanResult,
+          Awaited<ReturnType<typeof readProgressFile>>,
+        ] = await Promise.all([scanFolder(handle), readProgressFile(handle)]);
+
+        const loadedProgress = progressRead.document;
         setAssets(scanResult.assets);
         setFolderWarnings(scanResult.warnings);
-        setCollectionRef((prev) => prev || scanResult.folderName);
+        setDetectedProgress(loadedProgress);
+        setProgressReadError(progressRead.error ?? null);
+
+        if (loadedProgress?.collection_ref) {
+          setCollectionRef(loadedProgress.collection_ref);
+        } else {
+          setCollectionRef((prev) => prev || scanResult.folderName);
+        }
+
         setFolderScanning(false);
 
-        // If a consented list was already loaded, synchronize participant selectability
-        // against the newly scanned collection capture time
-        if (scanResult.assets.length > 0 && scanResult.assets[0]?.capturedAt) {
-          const refTime = scanResult.assets[0].capturedAt;
-          setConsentedList((prevList) => {
-            if (!prevList) return null;
-            let selectableCount = 0;
-            const updatedPeople = prevList.people.map((person) => {
-              const res = evaluateSelectability(person.isMinor, person.consentExpiresAt, {
-                referenceTime: refTime,
-                listValidUntil: prevList.listValidUntil,
+        // Enforce R-09 if a consented list was loaded BEFORE this folder was opened
+        const currentList = consentedListRef.current;
+        if (currentList && loadedProgress && currentList.projectId !== loadedProgress.project_id) {
+          setConsentedList(null);
+          setListErrors([
+            {
+              code: 'RESUME_MISMATCH',
+              message: `This collection was tagged under project ${loadedProgress.project_id}; cannot use a list for ${currentList.projectId}`,
+            },
+          ]);
+        } else if (currentList) {
+          // Synchronize participant selectability against collection capture time
+          const fallbackProgTime = loadedProgress
+            ? Object.values(loadedProgress.assets)[0]?.captured_at
+            : undefined;
+          const refTime = scanResult.assets[0]?.capturedAt ?? fallbackProgTime;
+          if (refTime) {
+            setConsentedList((prevList) => {
+              if (!prevList) return null;
+              let selectableCount = 0;
+              const updatedPeople = prevList.people.map((person) => {
+                const res = evaluateSelectability(person.isMinor, person.consentExpiresAt, {
+                  referenceTime: refTime,
+                  listValidUntil: prevList.listValidUntil,
+                });
+                if (res.isSelectable) {
+                  selectableCount++;
+                }
+                return {
+                  ...person,
+                  isSelectable: res.isSelectable,
+                  nonSelectableReason: res.reason,
+                  formattedReason: res.formattedReason,
+                };
               });
-              if (res.isSelectable) {
-                selectableCount++;
-              }
               return {
-                ...person,
-                isSelectable: res.isSelectable,
-                nonSelectableReason: res.reason,
-                formattedReason: res.formattedReason,
+                ...prevList,
+                people: updatedPeople,
+                selectableCount,
               };
             });
-            return {
-              ...prevList,
-              people: updatedPeople,
-              selectableCount,
-            };
-          });
+          }
         }
 
         if (scanResult.assets.length === 0) {
@@ -203,32 +247,33 @@ export function useAppPipeline(options?: UseAppPipelineOptions): AppPipeline {
   }, [ingestFolderHandle]);
 
   // Action: Load list from CSV text
-  const loadListFromText = useCallback(
-    (csvText: string, fileName?: string) => {
-      setListLoading(true);
-      if (fileName) {
-        setListFileName(fileName);
-      }
+  const loadListFromText = useCallback((csvText: string, fileName?: string) => {
+    setListLoading(true);
+    if (fileName) {
+      setListFileName(fileName);
+    }
 
-      // If assets are already ingested, evaluate against first asset capture time;
-      // otherwise evaluate against current time
-      const refTime = assets.length > 0 && assets[0]?.capturedAt ? assets[0].capturedAt : new Date();
+    const activeAssets = assetsRef.current;
+    const progress = detectedProgressRef.current;
+    const fallbackProgTime = progress
+      ? Object.values(progress.assets)[0]?.captured_at
+      : undefined;
+    const refTime = activeAssets[0]?.capturedAt ?? fallbackProgTime ?? new Date();
 
-      const result = loadConsentedList(csvText, {
-        referenceTime: refTime,
-      });
+    const result = loadConsentedList(csvText, {
+      referenceTime: refTime,
+      expectedProjectId: progress?.project_id,
+    });
 
-      if (result.success) {
-        setConsentedList(result.data);
-        setListErrors([]);
-      } else {
-        setConsentedList(null); // Refuse whole list
-        setListErrors(result.errors);
-      }
-      setListLoading(false);
-    },
-    [assets]
-  );
+    if (result.success) {
+      setConsentedList(result.data);
+      setListErrors([]);
+    } else {
+      setConsentedList(null); // Refuse whole list
+      setListErrors(result.errors);
+    }
+    setListLoading(false);
+  }, []);
 
   // Action: Load list from File
   const loadListFromFile = useCallback(
@@ -254,6 +299,42 @@ export function useAppPipeline(options?: UseAppPipelineOptions): AppPipeline {
     [loadListFromText]
   );
 
+  // Reflect physical deletions from Corrections without re-running full worker pool
+  const markFilesDeleted = useCallback((assetIds: string[]) => {
+    const removedSet = new Set(assetIds);
+    if (removedSet.size === 0) return;
+
+    setAssets((prev) => prev.filter((a) => !removedSet.has(a.assetId)));
+    setAssetHashes((prev) => {
+      const next = { ...prev };
+      for (const id of removedSet) {
+        delete next[id];
+      }
+      return next;
+    });
+  }, []);
+
+  // Reflect freshly re-hashed redacted asset in pipeline lookup
+  const updateRedactedAssetFile = useCallback(
+    (assetId: string, file: File, newSha256: string) => {
+      setAssets((prev) =>
+        prev.map((a) =>
+          a.assetId === assetId
+            ? {
+                ...a,
+                file,
+                sizeBytes: file.size,
+                sha256: newSha256,
+                hashProgress: 100,
+              }
+            : a
+        )
+      );
+      setAssetHashes((prev) => ({ ...prev, [assetId]: newSha256 }));
+    },
+    []
+  );
+
   // Action: Reset
   const resetAll = useCallback(() => {
     hashManagerRef.current?.dispose();
@@ -264,6 +345,8 @@ export function useAppPipeline(options?: UseAppPipelineOptions): AppPipeline {
     setFolderScanning(false);
     setFolderWarnings([]);
     setCollectionRef('');
+    setDetectedProgress(null);
+    setProgressReadError(null);
     setHashingProgress(INITIAL_PROGRESS);
     setHashingCompleted(false);
     setAssetHashes({});
@@ -273,16 +356,36 @@ export function useAppPipeline(options?: UseAppPipelineOptions): AppPipeline {
     setListFileName(null);
   }, []);
 
-  // Derived readiness: Folder scanned with assets, no active scan, valid consented list
+  const reconciliation = useMemo(() => {
+    if (!detectedProgress) return null;
+    return reconcileFolderWithProgress(assets, detectedProgress, assetHashes);
+  }, [assets, detectedProgress, assetHashes]);
+
+  const listDeletionReminder = useMemo(
+    () => isListDeletionReminderDue(detectedProgress),
+    [detectedProgress]
+  );
+
+  // Derived readiness: Folder scanned (has disk files or resumed progress), no active scan, valid consented list
   const isReadyForTagging = useMemo(() => {
+    const hasAssetsOrProgress =
+      assets.length > 0 ||
+      (detectedProgress !== null && Object.keys(detectedProgress.assets).length > 0);
     return Boolean(
       directoryHandle !== null &&
-        assets.length > 0 &&
+        hasAssetsOrProgress &&
         !folderScanning &&
         consentedList !== null &&
         listErrors.length === 0
     );
-  }, [directoryHandle, assets.length, folderScanning, consentedList, listErrors.length]);
+  }, [
+    directoryHandle,
+    assets.length,
+    detectedProgress,
+    folderScanning,
+    consentedList,
+    listErrors.length,
+  ]);
 
   return {
     directoryHandle,
@@ -292,6 +395,10 @@ export function useAppPipeline(options?: UseAppPipelineOptions): AppPipeline {
     folderWarnings,
     collectionRef,
     setCollectionRef,
+    detectedProgress,
+    progressReadError,
+    reconciliation,
+    listDeletionReminder,
     hashingProgress,
     hashingCompleted,
     assetHashes,
@@ -303,6 +410,8 @@ export function useAppPipeline(options?: UseAppPipelineOptions): AppPipeline {
     openFolderFromHandle: ingestFolderHandle,
     loadListFromFile,
     loadListFromText,
+    markFilesDeleted,
+    updateRedactedAssetFile,
     resetAll,
     isReadyForTagging,
   };
