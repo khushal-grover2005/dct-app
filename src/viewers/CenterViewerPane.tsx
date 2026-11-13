@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useEffect } from 'react';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { ChevronLeft, ChevronRight, AlertTriangle, Trash2 } from 'lucide-react';
 import { hasNativePreview, type AssetType, type CaptureTimeSource } from '../folder';
 import type { AssetTagState } from '../tagging/types';
 import { formatBytes, formatDurationSeconds } from './mimeTypes';
@@ -21,6 +21,7 @@ interface CenterViewerPaneProps {
   onNext: () => void;
   onReviewedToEnd: (assetId: string) => void;
   onConfirmExternalReview: (assetId: string, confirmed: boolean) => void;
+  onConfirmChangedTags?: (assetId: string) => void;
   onDurationKnown: (assetId: string, durationSeconds: number) => void;
   actionsRef: React.MutableRefObject<ViewerKeyboardActions | null>;
 }
@@ -54,6 +55,7 @@ export const CenterViewerPane: React.FC<CenterViewerPaneProps> = ({
   onNext,
   onReviewedToEnd,
   onConfirmExternalReview,
+  onConfirmChangedTags,
   onDurationKnown,
   actionsRef,
 }) => {
@@ -74,7 +76,7 @@ export const CenterViewerPane: React.FC<CenterViewerPaneProps> = ({
     });
   }, []);
 
-  if (!asset || !file) {
+  if (!asset) {
     return (
       <section
         data-testid="center-viewer-pane"
@@ -87,11 +89,46 @@ export const CenterViewerPane: React.FC<CenterViewerPaneProps> = ({
     );
   }
 
+  const isMissingFile = asset.presenceStatus === 'missing' || (!file && asset.state === 'active');
+  const isDeleted = asset.state === 'deleted';
   const sourceMeta = SOURCE_LABELS[asset.captureTimeSource];
   const isNativeSupported = hasNativePreview(asset.assetType, asset.assetId);
   const decodeFailed = Boolean(decodeFailedIds[asset.assetId]);
 
   const renderViewer = () => {
+    if (isDeleted) {
+      return (
+        <div
+          data-testid="deleted-asset-viewer"
+          className="flex-1 flex flex-col items-center justify-center bg-white rounded-lg border border-slate-200 p-8 text-center space-y-2"
+        >
+          <Trash2 className="w-8 h-8 text-slate-400" />
+          <p className="text-sm font-semibold text-slate-800">Asset Deleted</p>
+          <p className="text-xs text-slate-500 max-w-md">
+            This file has been marked <code className="font-mono">deleted</code> and removed from the collection.
+          </p>
+        </div>
+      );
+    }
+
+    if (isMissingFile || !file) {
+      return (
+        <div
+          data-testid="missing-asset-viewer"
+          role="alert"
+          className="flex-1 flex flex-col items-center justify-center bg-rose-50/70 rounded-lg border border-rose-200 p-8 text-center space-y-2"
+        >
+          <AlertTriangle className="w-8 h-8 text-rose-500" />
+          <p className="text-sm font-semibold text-rose-900">File missing from folder</p>
+          <p className="text-xs text-rose-800 max-w-md">
+            <span className="font-mono">{asset.assetId}</span> was recorded in{' '}
+            <code className="font-mono">.dct-progress.json</code> but is not present in the folder.
+            Restore the file on disk or mark it deleted via Corrections.
+          </p>
+        </div>
+      );
+    }
+
     if (decodeFailed) {
       return (
         <FallbackViewer
@@ -271,6 +308,35 @@ export const CenterViewerPane: React.FC<CenterViewerPaneProps> = ({
           </button>
         </div>
       </div>
+
+      {/* Changed-file alert (R-23) */}
+      {asset.presenceStatus === 'changed' && (
+        <div
+          data-testid="changed-asset-banner"
+          role="alert"
+          className="mb-3 p-3 rounded-lg bg-amber-50 border border-amber-300 flex flex-wrap items-center justify-between gap-2 text-xs text-amber-900"
+        >
+          <div className="flex items-center space-x-2">
+            <AlertTriangle className="w-4 h-4 text-amber-600 flex-shrink-0" />
+            <span>
+              <strong>changed — check tags</strong>: File contents changed since last saved progress.
+              {asset.isHeldFromSave
+                ? ' Use Corrections -> I redacted it if bystanders were removed.'
+                : ' Verify tags and confirm below.'}
+            </span>
+          </div>
+          {!asset.isHeldFromSave && onConfirmChangedTags && (
+            <button
+              type="button"
+              data-testid="confirm-changed-tags-btn"
+              onClick={() => onConfirmChangedTags(asset.assetId)}
+              className="px-2.5 py-1 rounded bg-amber-700 hover:bg-amber-800 text-white font-medium transition"
+            >
+              Confirm tags match file
+            </button>
+          )}
+        </div>
+      )}
 
       {/* Main Viewer Canvas */}
       <div className="flex-1 min-h-0 flex flex-col">{renderViewer()}</div>

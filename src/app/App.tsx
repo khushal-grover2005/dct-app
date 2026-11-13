@@ -5,10 +5,50 @@ import { TaggingWorkspace, useTaggingWorkspace } from '../tagging';
 import type { TaggingWorkspaceController } from '../tagging';
 import type { ConsentedListResult } from '../list';
 import { ReviewScreen, useReviewExport } from '../review';
+import { CorrectionsScreen, useCorrections } from '../corrections';
+
+interface CorrectionsRouteProps {
+  controller: TaggingWorkspaceController;
+  consentedList: ConsentedListResult;
+  collectionRef: string;
+  directoryHandle: FileSystemDirectoryHandle;
+  onAssetRedacted: (assetId: string, file: File, newSha256: string) => void;
+  onAssetsDeleted: (assetIds: string[]) => void;
+  onBackToWorkspace: () => void;
+  onBackToStart: () => void;
+}
+
+const CorrectionsRoute: React.FC<CorrectionsRouteProps> = ({
+  controller,
+  consentedList,
+  collectionRef,
+  directoryHandle,
+  onAssetRedacted,
+  onAssetsDeleted,
+  onBackToWorkspace,
+  onBackToStart,
+}) => {
+  const corrections = useCorrections({
+    controller,
+    directoryHandle,
+    consentedList,
+    collectionRef,
+    onAssetRedacted,
+    onAssetsDeleted,
+  });
+
+  return (
+    <CorrectionsScreen
+      corrections={corrections}
+      onBackToWorkspace={onBackToWorkspace}
+      onBackToStart={onBackToStart}
+    />
+  );
+};
 
 export const App: React.FC = () => {
   const pipeline = useAppPipeline();
-  const [currentScreen, setCurrentScreen] = useState<'start' | 'workspace' | 'review'>('start');
+  const [currentScreen, setCurrentScreen] = useState<'start' | 'workspace' | 'review' | 'corrections'>('start');
 
   const workspaceController = useTaggingWorkspace({
     directoryHandle: pipeline.directoryHandle,
@@ -16,6 +56,7 @@ export const App: React.FC = () => {
     assetHashes: pipeline.assetHashes,
     consentedList: pipeline.consentedList,
     collectionRef: pipeline.collectionRef,
+    initialProgress: pipeline.detectedProgress,
   });
 
   const effectiveScreen = pipeline.isReadyForTagging ? currentScreen : 'start';
@@ -49,7 +90,11 @@ export const App: React.FC = () => {
               ? 'Tagging Workspace'
               : effectiveScreen === 'review'
                 ? 'Review & Save'
-                : 'Setup & Collection'}
+                : effectiveScreen === 'corrections'
+                  ? 'Corrections & Deletions'
+                  : 'Setup & Collection'}
+  
+
           </div>
         </div>
       </header>
@@ -63,6 +108,11 @@ export const App: React.FC = () => {
             hashingCompleted={pipeline.hashingCompleted}
             onBackToStart={() => setCurrentScreen('start')}
             onGoToReview={() => setCurrentScreen('review')}
+            onGoToCorrections={
+              workspaceController.saves.length > 0
+                ? () => setCurrentScreen('corrections')
+                : undefined
+            }
           />
         </main>
       ) : effectiveScreen === 'review' && pipeline.consentedList && pipeline.directoryHandle ? (
@@ -78,9 +128,32 @@ export const App: React.FC = () => {
             setCurrentScreen('start');
           }}
         />
+      ) : effectiveScreen === 'corrections' && pipeline.consentedList && pipeline.directoryHandle ? (
+        <CorrectionsRoute
+          controller={workspaceController}
+          consentedList={pipeline.consentedList}
+          collectionRef={pipeline.collectionRef}
+          directoryHandle={pipeline.directoryHandle}
+          onAssetRedacted={pipeline.updateRedactedAssetFile}
+          onAssetsDeleted={pipeline.markFilesDeleted}
+          onBackToWorkspace={() => setCurrentScreen('workspace')}
+          onBackToStart={async () => {
+            await workspaceController.flushProgress();
+            setCurrentScreen('start');
+          }}
+        />
       ) : (
         <main className="flex-1 p-6 max-w-7xl w-full mx-auto">
-          <StartScreen pipeline={pipeline} onProceed={() => setCurrentScreen('workspace')} />
+          <StartScreen
+            pipeline={pipeline}
+            savedEntries={workspaceController.saves}
+            onProceed={() => setCurrentScreen('workspace')}
+            onGoToCorrections={
+              workspaceController.saves.length > 0
+                ? () => setCurrentScreen('corrections')
+                : undefined
+            }
+          />
         </main>
       )}
     </div>

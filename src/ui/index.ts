@@ -5,4 +5,5 @@ export * from './ListErrorBanner';
 export * from './ListSummary';
 export * from './ParticipantTable';
 export * from './ListSection';
+export * from './ResumeBanner';
 export * from './StartScreen';

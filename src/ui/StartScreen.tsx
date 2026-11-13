@@ -1,11 +1,17 @@
 import React, { useState } from 'react';
-import { ArrowRight, Tag, CheckCircle } from 'lucide-react';
+import { ArrowRight, Tag, CheckCircle, Wrench } from 'lucide-react';
 import type { StartScreenProps } from './types';
 import { FolderSection } from './FolderSection';
 import { AssetTable } from './AssetTable';
 import { ListSection } from './ListSection';
+import { ResumeBanner } from './ResumeBanner';
 
-export const StartScreen: React.FC<StartScreenProps> = ({ pipeline, onProceed }) => {
+export const StartScreen: React.FC<StartScreenProps> = ({
+  pipeline,
+  savedEntries,
+  onProceed,
+  onGoToCorrections,
+}) => {
   const {
     assets,
     assetHashes,
@@ -14,16 +20,23 @@ export const StartScreen: React.FC<StartScreenProps> = ({ pipeline, onProceed })
     isReadyForTagging,
     folderName,
     consentedList,
+    detectedProgress,
+    progressReadError,
+    reconciliation,
+    listDeletionReminder,
   } = pipeline;
 
   const [workspaceNotice, setWorkspaceNotice] = useState<string | null>(null);
+
+  const hasPreviousSaves =
+    (detectedProgress?.saves.length ?? 0) > 0 || (savedEntries?.length ?? 0) > 0;
 
   const handleProceed = () => {
     if (!isReadyForTagging) return;
     if (onProceed) {
       onProceed();
     } else {
-      setWorkspaceNotice('Collection verified and ready. Tagging Workspace unlocks in Increment 2.');
+      setWorkspaceNotice('Collection verified and ready. Tagging Workspace is ready.');
     }
   };
 
@@ -31,6 +44,17 @@ export const StartScreen: React.FC<StartScreenProps> = ({ pipeline, onProceed })
     <div data-testid="start-screen" className="space-y-6">
       {/* 1. Collection Folder Ingestion */}
       <FolderSection pipeline={pipeline} />
+
+      {/* Existing Progress Resume Banner & 7-day List Deletion Reminder */}
+      <ResumeBanner
+        detectedProgress={detectedProgress}
+        progressReadError={progressReadError}
+        reconciliation={reconciliation}
+        listDeletionReminder={listDeletionReminder}
+        savedEntries={savedEntries}
+        isReadyForTagging={isReadyForTagging}
+        onGoToCorrections={onGoToCorrections}
+      />
 
       {/* Scanned Assets Table */}
       {assets.length > 0 && <AssetTable assets={assets} assetHashes={assetHashes} />}
@@ -69,16 +93,31 @@ export const StartScreen: React.FC<StartScreenProps> = ({ pipeline, onProceed })
           </div>
 
           <div className="flex flex-col items-end space-y-2">
-            <button
-              type="button"
-              data-testid="proceed-button"
-              onClick={handleProceed}
-              disabled={!isReadyForTagging}
-              className="inline-flex items-center px-6 py-2.5 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-slate-900 hover:bg-slate-800 disabled:bg-slate-200 disabled:text-slate-400 disabled:cursor-not-allowed transition"
-            >
-              <span>Start tagging</span>
-              <ArrowRight className="w-4 h-4 ml-2" />
-            </button>
+            <div className="flex flex-wrap items-center gap-3">
+              {hasPreviousSaves && !detectedProgress && onGoToCorrections && (
+                <button
+                  type="button"
+                  data-testid="go-to-corrections-btn"
+                  onClick={onGoToCorrections}
+                  disabled={!isReadyForTagging}
+                  className="inline-flex items-center px-4 py-2.5 border border-amber-300 text-sm font-medium rounded-md shadow-sm text-amber-900 bg-amber-50 hover:bg-amber-100 disabled:bg-slate-100 disabled:text-slate-400 disabled:border-slate-200 disabled:cursor-not-allowed transition"
+                >
+                  <Wrench className="w-4 h-4 mr-2" />
+                  <span>Corrections &amp; Deletions</span>
+                </button>
+              )}
+
+              <button
+                type="button"
+                data-testid="proceed-button"
+                onClick={handleProceed}
+                disabled={!isReadyForTagging}
+                className="inline-flex items-center px-6 py-2.5 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-slate-900 hover:bg-slate-800 disabled:bg-slate-200 disabled:text-slate-400 disabled:cursor-not-allowed transition"
+              >
+                <span>{detectedProgress ? 'Resume collection' : 'Start tagging'}</span>
+                <ArrowRight className="w-4 h-4 ml-2" />
+              </button>
+            </div>
 
             {!isReadyForTagging && (
               <p className="text-xs text-slate-400">

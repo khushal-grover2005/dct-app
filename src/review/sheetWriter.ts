@@ -140,12 +140,12 @@ export function buildExportSheet(
       rows.filter((row) => row.row_type === 'bystander').map((row) => row.asset_id)
     )],
     missingHashAssets: [
-      ...new Set(assets.filter((asset) => !asset.sha256).map((asset) => asset.assetId)),
+      ...new Set(assets.filter((asset) => asset.state === 'active' && !asset.sha256).map((asset) => asset.assetId)),
     ],
     fileDateAssets: [
       ...new Set(
         assets
-          .filter((asset) => asset.captureTimeSource === 'last_modified')
+          .filter((asset) => asset.state === 'active' && asset.captureTimeSource === 'last_modified')
           .map((asset) => asset.assetId)
       ),
     ],

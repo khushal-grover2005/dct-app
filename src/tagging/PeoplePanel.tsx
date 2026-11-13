@@ -98,8 +98,14 @@ export const PeoplePanel: React.FC<PeoplePanelProps> = ({
 
   const prompt = getPeoplePanelPrompt(asset.assetType);
   const bystanderOnlyError = isBystanderOnly(asset);
+  const isLockedLifecycleState =
+    asset.state === 'deleted' || asset.presenceStatus === 'missing';
   const cannotTurnOnNoPerson =
-    !asset.noPerson && (asset.personIds.length > 0 || asset.bystanderCount > 0);
+    isLockedLifecycleState ||
+    (!asset.noPerson && (asset.personIds.length > 0 || asset.bystanderCount > 0));
+  const minAllowedBystander = asset.isHeldFromSave ? 1 : MIN_BYSTANDER_COUNT;
+  const decrementDisabled =
+    isLockedLifecycleState || asset.noPerson || asset.bystanderCount <= minAllowedBystander;
 
   const isAssetCapturedAfterListExpiry =
     new Date(asset.capturedAt).getTime() > new Date(consentedList.listValidUntil).getTime();
@@ -107,7 +113,7 @@ export const PeoplePanel: React.FC<PeoplePanelProps> = ({
   const handleSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') {
       e.preventDefault();
-      if (asset.noPerson) return;
+      if (asset.noPerson || isLockedLifecycleState) return;
       const firstSelectable = evaluatedPeople.find(
         (entry) => entry.selectability.isSelectable && !asset.personIds.includes(entry.person.personId)
       );
@@ -144,6 +150,18 @@ export const PeoplePanel: React.FC<PeoplePanelProps> = ({
 
       {/* Scrollable Inner Controls + Search Results */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
+        {isLockedLifecycleState && (
+          <div
+            data-testid="locked-lifecycle-banner"
+            role="alert"
+            className="p-3 rounded-md bg-rose-50 border border-rose-300 text-xs text-rose-900"
+          >
+            {asset.state === 'deleted'
+              ? 'This asset has been deleted. Tags cannot be edited.'
+              : 'This asset is missing from the folder. Restore the file or resolve it via Corrections.'}
+          </div>
+        )}
+
         {/* R-12 Banner when asset was captured after list_valid_until */}
         {isAssetCapturedAfterListExpiry && (
           <div
@@ -207,15 +225,17 @@ export const PeoplePanel: React.FC<PeoplePanelProps> = ({
                   >
                     <UserCheck className="w-3.5 h-3.5 text-emerald-600 flex-shrink-0" />
                     <span>{label}</span>
-                    <button
-                      type="button"
-                      data-testid={`remove-person-btn-${personId}`}
-                      onClick={() => onRemovePerson(personId)}
-                      aria-label={`Remove ${person?.displayName ?? 'person'}`}
-                      className="p-0.5 rounded-full hover:bg-emerald-200 text-emerald-700 transition"
-                    >
-                      <X className="w-3 h-3" />
-                    </button>
+                    {!isLockedLifecycleState && (
+                      <button
+                        type="button"
+                        data-testid={`remove-person-btn-${personId}`}
+                        onClick={() => onRemovePerson(personId)}
+                        aria-label={`Remove ${person?.displayName ?? 'person'}`}
+                        className="p-0.5 rounded-full hover:bg-emerald-200 text-emerald-700 transition"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    )}
                   </span>
                 );
               })}
@@ -223,7 +243,7 @@ export const PeoplePanel: React.FC<PeoplePanelProps> = ({
           )}
         </div>
 
-        {/* Bystanders Stepper (0-20) & Bystander-only Error Banner (R-18, R-20) */}
+        {/* Bystanders Stepper (0-20) & Bystander-only Error Banner (R-18, R-20, R-34) */}
         <div className="p-3 rounded-lg bg-slate-50 border border-slate-200 space-y-2.5">
           <div className="flex items-center justify-between">
             <div>
@@ -236,8 +256,13 @@ export const PeoplePanel: React.FC<PeoplePanelProps> = ({
                 type="button"
                 data-testid="bystander-decrement-btn"
                 onClick={onDecrementBystander}
-                disabled={asset.noPerson || asset.bystanderCount <= MIN_BYSTANDER_COUNT}
+                disabled={decrementDisabled}
                 aria-label="Decrease bystanders"
+                title={
+                  asset.isHeldFromSave
+                    ? 'Held asset bystanders can only be cleared in Corrections'
+                    : 'Decrease bystanders'
+                }
                 className="w-7 h-7 rounded border border-slate-300 bg-white flex items-center justify-center text-slate-700 hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed transition"
               >
                 <Minus className="w-3.5 h-3.5" />
@@ -254,7 +279,11 @@ export const PeoplePanel: React.FC<PeoplePanelProps> = ({
                 type="button"
                 data-testid="bystander-increment-btn"
                 onClick={onIncrementBystander}
-                disabled={asset.noPerson || asset.bystanderCount >= MAX_BYSTANDER_COUNT}
+                disabled={
+                  isLockedLifecycleState ||
+                  asset.noPerson ||
+                  asset.bystanderCount >= MAX_BYSTANDER_COUNT
+                }
                 aria-label="Increase bystanders"
                 className="w-7 h-7 rounded border border-slate-300 bg-white flex items-center justify-center text-slate-700 hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed transition"
               >
@@ -262,6 +291,16 @@ export const PeoplePanel: React.FC<PeoplePanelProps> = ({
               </button>
             </div>
           </div>
+
+          {asset.isHeldFromSave && asset.bystanderCount > 0 && (
+            <p
+              data-testid="held-bystander-lock-note"
+              className="text-[11px] text-amber-800 bg-amber-50 border border-amber-200 rounded px-2 py-1"
+            >
+              Held in an earlier save. Only redaction (&quot;I redacted it&quot;) or deletion
+              (&quot;I deleted it&quot;) in Corrections can clear bystanders.
+            </p>
+          )}
 
           {bystanderOnlyError && (
             <div
@@ -304,7 +343,7 @@ export const PeoplePanel: React.FC<PeoplePanelProps> = ({
             </span>
           </button>
 
-          {cannotTurnOnNoPerson && (
+          {cannotTurnOnNoPerson && !isLockedLifecycleState && (
             <p className="text-[11px] text-slate-500 px-1">
               Clear selected people and bystanders to enable &quot;No person&quot;.
             </p>
@@ -352,7 +391,7 @@ export const PeoplePanel: React.FC<PeoplePanelProps> = ({
             ) : (
               evaluatedPeople.map(({ person, selectability }) => {
                 const alreadySelected = asset.personIds.includes(person.personId);
-                const isDisabledByNoPerson = asset.noPerson;
+                const isDisabledByNoPerson = asset.noPerson || isLockedLifecycleState;
 
                 return (
                   <div

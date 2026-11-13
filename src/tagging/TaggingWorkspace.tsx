@@ -15,6 +15,7 @@ interface TaggingWorkspaceProps {
   hashingCompleted: boolean;
   onBackToStart: () => void;
   onGoToReview?: () => void;
+  onGoToCorrections?: () => void;
 }
 
 function clampWidth(val: number, min: number, max: number): number {
@@ -39,6 +40,7 @@ export const TaggingWorkspace: React.FC<TaggingWorkspaceProps> = ({
   hashingCompleted,
   onBackToStart,
   onGoToReview,
+  onGoToCorrections,
 }) => {
   const {
     state,
@@ -47,6 +49,7 @@ export const TaggingWorkspace: React.FC<TaggingWorkspaceProps> = ({
     activeAsset,
     stats,
     fileLookup,
+    saves,
     saveStatus,
     flushProgress,
   } = controller;
@@ -246,6 +249,19 @@ export const TaggingWorkspace: React.FC<TaggingWorkspaceProps> = ({
               Review &amp; Save
             </button>
           )}
+          {onGoToCorrections && saves.length > 0 && (
+            <button
+              type="button"
+              data-testid="workspace-go-to-corrections-btn"
+              onClick={async () => {
+                await flushProgress();
+                onGoToCorrections();
+              }}
+              className="rounded border border-amber-300 bg-amber-50 px-2.5 py-1 font-medium text-amber-800 hover:bg-amber-100"
+            >
+              Corrections &amp; Deletions
+            </button>
+          )}
         </div>
 
         <div className="flex items-center space-x-4 text-slate-600">
@@ -336,6 +352,9 @@ export const TaggingWorkspace: React.FC<TaggingWorkspaceProps> = ({
           }
           onConfirmExternalReview={(assetId, confirmed) =>
             dispatch({ type: 'CONFIRM_EXTERNAL_REVIEW', assetId, confirmed })
+          }
+          onConfirmChangedTags={(assetId) =>
+            dispatch({ type: 'CONFIRM_CHANGED_TAGS', assetId })
           }
           onDurationKnown={(assetId, durationSeconds) =>
             dispatch({ type: 'UPDATE_DURATION', assetId, durationSeconds })

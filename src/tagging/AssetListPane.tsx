@@ -206,6 +206,9 @@ export const AssetListPane: React.FC<AssetListPaneProps> = ({
               <option value="bystanders">Has bystanders</option>
               <option value="bystander_only">Bystander only</option>
               <option value="no_person">No person</option>
+              <option value="missing">Missing</option>
+              <option value="changed">Changed</option>
+              <option value="deleted">Deleted</option>
             </select>
           </div>
 
@@ -270,6 +273,10 @@ export const AssetListPane: React.FC<AssetListPaneProps> = ({
             const isSelected = asset.assetId === activeAssetId;
             const statusInfo = getAssetStatusInfo(asset);
             const file = fileLookup.get(asset.assetId);
+            const showSecondaryDecisionPills =
+              statusInfo.primaryStatus === 'not_fully_reviewed' ||
+              statusInfo.primaryStatus === 'changed' ||
+              statusInfo.primaryStatus === 'missing';
 
             return (
               <button
@@ -307,14 +314,13 @@ export const AssetListPane: React.FC<AssetListPaneProps> = ({
                       {statusInfo.label}
                     </span>
 
-                    {statusInfo.primaryStatus === 'not_fully_reviewed' &&
-                      asset.personIds.length > 0 && (
-                        <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-sky-50 text-sky-700 border border-sky-200">
-                          tagged ({asset.personIds.length})
-                        </span>
-                      )}
+                    {showSecondaryDecisionPills && asset.personIds.length > 0 && (
+                      <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-sky-50 text-sky-700 border border-sky-200">
+                        tagged ({asset.personIds.length})
+                      </span>
+                    )}
 
-                    {statusInfo.primaryStatus === 'not_fully_reviewed' && asset.noPerson && (
+                    {showSecondaryDecisionPills && asset.noPerson && (
                       <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-sky-50 text-sky-700 border border-sky-200">
                         no person
                       </span>

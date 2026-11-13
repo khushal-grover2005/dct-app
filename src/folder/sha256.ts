@@ -234,3 +234,51 @@ export function computeSha256(data: Uint8Array | ArrayBuffer | string): string {
   hasher.update(bytes);
   return hasher.digest();
 }
+
+const STREAM_CHUNK_BYTES = 8 * 1024 * 1024; // 8 MB chunks
+
+async function readBlobSliceArrayBuffer(blob: Blob): Promise<ArrayBuffer> {
+  if (typeof blob.arrayBuffer === 'function') {
+    return blob.arrayBuffer();
+  }
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as ArrayBuffer);
+    reader.onerror = () => reject(reader.error ?? new Error('Failed to read blob slice'));
+    reader.readAsArrayBuffer(blob);
+  });
+}
+
+/**
+ * Computes lowercase 64-char SHA-256 hex digest of a File or Blob in 8 MB chunks.
+ * Safe for multi-gigabyte files and works both in browser and Vitest/jsdom.
+ */
+export async function computeFileSha256(file: File | Blob): Promise<string> {
+  const totalBytes = file.size;
+  if (totalBytes === 0) {
+    return new StreamingSha256().digest();
+  }
+
+  if (
+    totalBytes <= STREAM_CHUNK_BYTES &&
+    typeof globalThis.crypto?.subtle?.digest === 'function'
+  ) {
+    try {
+      const buffer = await readBlobSliceArrayBuffer(file);
+      const digest = await globalThis.crypto.subtle.digest('SHA-256', buffer);
+      return Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, '0')).join('');
+    } catch {
+      // Fallback to pure TypeScript streaming engine
+    }
+  }
+
+  const hasher = new StreamingSha256();
+  let offset = 0;
+  while (offset < totalBytes) {
+    const nextOffset = Math.min(offset + STREAM_CHUNK_BYTES, totalBytes);
+    const chunk = await readBlobSliceArrayBuffer(file.slice(offset, nextOffset));
+    hasher.update(new Uint8Array(chunk));
+    offset = nextOffset;
+  }
+  return hasher.digest();
+}

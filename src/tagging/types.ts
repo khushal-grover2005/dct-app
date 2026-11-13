@@ -7,7 +7,10 @@ export type TaggingFilterStatus =
   | 'tagged'
   | 'bystanders'
   | 'bystander_only'
-  | 'no_person';
+  | 'no_person'
+  | 'missing'
+  | 'changed'
+  | 'deleted';
 
 export type TaggingFilterType = 'all' | AssetType;
 
@@ -18,7 +21,17 @@ export type AssetPrimaryStatus =
   | 'tagged'
   | 'no_person'
   | 'bystander_only'
-  | 'not_fully_reviewed';
+  | 'not_fully_reviewed'
+  | 'missing'
+  | 'changed'
+  | 'deleted';
+
+export type AssetPresenceStatus =
+  | 'present'
+  | 'missing'
+  | 'changed'
+  | 'untagged'
+  | 'deleted';
 
 export interface AssetTagState {
   assetId: string;
@@ -34,6 +47,12 @@ export interface AssetTagState {
   reviewedToEnd: boolean; // Audio/Video played through end
   externalReviewConfirmed: boolean; // Confirmed reviewed outside app
   state: 'active' | 'deleted';
+  /** Lifecycle / reconciliation status compared against `.dct-progress.json` */
+  presenceStatus?: AssetPresenceStatus;
+  /** True once exported/saved with bystander rows and not yet redacted or deleted (R-34) */
+  isHeldFromSave?: boolean;
+  /** SHA-256 recorded in `.dct-progress.json` before external changes/redactions */
+  progressSha256?: string | null;
 }
 
 export interface TaggingWorkspaceState {
@@ -62,6 +81,9 @@ export interface WorkspaceStats {
   bystanderCount: number;
   bystanderOnlyCount: number;
   notReviewedCount: number;
+  missingCount: number;
+  changedCount: number;
+  deletedCount: number;
 }
 
 export interface PeoplePanelPrompt {

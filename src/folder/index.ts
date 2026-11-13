@@ -5,3 +5,5 @@ export * from './captureTime';
 export * from './sha256';
 export * from './hashManager';
 export * from './progressWriter';
+export * from './fsHelpers';
+export * from './progressReader';

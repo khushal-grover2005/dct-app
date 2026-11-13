@@ -141,7 +141,11 @@ export function useReviewExport({
           key: `readiness-NOT_DONE-${asset.assetId}-${index}`,
           code: 'NOT_DONE',
           message:
-            asset.personIds.length === 0 && asset.bystanderCount > 0
+            asset.presenceStatus === 'missing'
+              ? 'This file is missing from the folder. Restore it or mark it deleted on the Corrections screen.'
+              : asset.presenceStatus === 'changed'
+                ? 'This file changed on disk since progress was saved. Review its tags before export.'
+                : asset.personIds.length === 0 && asset.bystanderCount > 0
               ? 'A bystander-only asset must be deleted before export.'
               : 'This asset has not been fully reviewed and tagged.',
           assetId: asset.assetId,
