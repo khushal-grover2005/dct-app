@@ -228,6 +228,7 @@ export function taggingReducer(
         });
 
         // Retain intentionally deleted or previously reconciled missing entries even when absent on disk
+        let appendedSpecial = false;
         if (!action.resetTags) {
           for (const existing of state.assets) {
             if (
@@ -235,14 +236,17 @@ export function taggingReducer(
               (existing.state === 'deleted' || existing.presenceStatus === 'missing')
             ) {
               nextAssets.push(existing);
+              appendedSpecial = true;
             }
           }
-          nextAssets.sort((a, b) =>
-            a.assetId.localeCompare(b.assetId, undefined, {
-              numeric: true,
-              sensitivity: 'base',
-            })
-          );
+          if (appendedSpecial) {
+            nextAssets.sort((a, b) =>
+              a.assetId.localeCompare(b.assetId, undefined, {
+                numeric: true,
+                sensitivity: 'base',
+              })
+            );
+          }
         }
       }
 
@@ -255,9 +259,18 @@ export function taggingReducer(
         ? state.activeAssetId
         : (nextAssets[0]?.assetId ?? null);
 
+      const arraysIdentical =
+        !action.resetTags &&
+        nextAssets.length === state.assets.length &&
+        nextAssets.every((item, idx) => item === state.assets[idx]);
+
+      if (arraysIdentical && nextActiveAssetId === state.activeAssetId) {
+        return state;
+      }
+
       return {
         ...state,
-        assets: nextAssets,
+        assets: arraysIdentical ? state.assets : nextAssets,
         activeAssetId: nextActiveAssetId,
         ...(action.resetTags
           ? {
@@ -309,6 +322,9 @@ export function taggingReducer(
 
     case 'REMOVE_PERSON_TAG': {
       const nextAssets = updateAssetById(state.assets, action.assetId, (asset) => {
+        if (asset.state === 'deleted' || asset.presenceStatus === 'missing') {
+          return asset;
+        }
         if (!asset.personIds.includes(action.personId)) {
           return asset;
         }
@@ -323,8 +339,8 @@ export function taggingReducer(
     case 'SET_BYSTANDER_COUNT': {
       const clamped = clampBystanderCount(action.count);
       const nextAssets = updateAssetById(state.assets, action.assetId, (asset) => {
-        // R-19: No person active disables bystander stepper
-        if (asset.noPerson || asset.state === 'deleted') {
+        // R-19: No person active disables bystander stepper; locked on missing/deleted
+        if (asset.noPerson || asset.state === 'deleted' || asset.presenceStatus === 'missing') {
           return asset;
         }
         // R-34: A held asset's bystander count cannot be cleared via workspace controls
@@ -342,7 +358,7 @@ export function taggingReducer(
 
     case 'INCREMENT_BYSTANDER': {
       const nextAssets = updateAssetById(state.assets, action.assetId, (asset) => {
-        if (asset.noPerson || asset.state === 'deleted') {
+        if (asset.noPerson || asset.state === 'deleted' || asset.presenceStatus === 'missing') {
           return asset;
         }
         const nextCount = clampBystanderCount(asset.bystanderCount + 1);
@@ -359,7 +375,7 @@ export function taggingReducer(
 
     case 'DECREMENT_BYSTANDER': {
       const nextAssets = updateAssetById(state.assets, action.assetId, (asset) => {
-        if (asset.noPerson || asset.state === 'deleted') {
+        if (asset.noPerson || asset.state === 'deleted' || asset.presenceStatus === 'missing') {
           return asset;
         }
         // R-34: A held asset's bystander count cannot be cleared below 1 except via R-31 / R-32

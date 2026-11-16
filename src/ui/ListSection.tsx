@@ -1,4 +1,4 @@
-import React, { useRef } from 'react';
+import React from 'react';
 import { FileText } from 'lucide-react';
 import type { AppPipeline } from './types';
 import { ListErrorBanner } from './ListErrorBanner';
@@ -11,7 +11,12 @@ interface ListSectionProps {
 
 export const ListSection: React.FC<ListSectionProps> = ({ pipeline }) => {
   const { consentedList, listLoading, listErrors, loadListFromFile } = pipeline;
-  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const buttonLabel = listLoading
+    ? 'Validating CSV...'
+    : consentedList
+      ? 'Reload consented list'
+      : 'Load consented list';
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -31,33 +36,29 @@ export const ListSection: React.FC<ListSectionProps> = ({ pipeline }) => {
           </div>
           <div>
             <h2 className="text-base font-semibold text-slate-900">2. Consented Participants List</h2>
-            <p className="text-xs text-slate-500">
+            <p className="text-xs text-slate-600">
               Load consented participants CSV file (strictly validated under rules L01–L04)
             </p>
           </div>
         </div>
-        <div>
+        <div className="relative inline-flex group">
           <input
-            ref={fileInputRef}
+            id="consented-list-input"
             type="file"
             accept=".csv"
+            disabled={listLoading}
+            aria-label={buttonLabel}
             data-testid="consented-list-input"
-            className="hidden"
+            className="peer absolute inset-0 z-10 w-full h-full opacity-0 cursor-pointer disabled:cursor-not-allowed"
             onChange={handleFileChange}
           />
-          <button
-            type="button"
+          <span
+            aria-hidden="true"
             data-testid="load-list-button"
-            onClick={() => fileInputRef.current?.click()}
-            disabled={listLoading}
-            className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-slate-900 hover:bg-slate-800 disabled:bg-slate-300 transition"
+            className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-slate-900 group-hover:bg-slate-800 peer-focus-visible:ring-2 peer-focus-visible:ring-offset-2 peer-focus-visible:ring-slate-900 peer-disabled:bg-slate-300 transition"
           >
-            {listLoading
-              ? 'Validating CSV...'
-              : consentedList
-                ? 'Reload consented list'
-                : 'Load consented list'}
-          </button>
+            {buttonLabel}
+          </span>
         </div>
       </div>
 
@@ -65,7 +66,7 @@ export const ListSection: React.FC<ListSectionProps> = ({ pipeline }) => {
         {listErrors.length > 0 && <ListErrorBanner errors={listErrors} />}
 
         {!consentedList && listErrors.length === 0 && !listLoading && (
-          <div className="p-4 rounded-md bg-slate-50 border border-dashed border-slate-200 text-center text-xs text-slate-500">
+          <div className="p-4 rounded-md bg-slate-50 border border-dashed border-slate-200 text-center text-xs text-slate-600">
             No consented list loaded. Click &quot;Load consented list&quot; to select a CSV file.
           </div>
         )}

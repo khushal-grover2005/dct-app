@@ -132,10 +132,33 @@ describe('review sheet writer', () => {
     const warning = detectFilenamePiiWarnings(
       [
         { ...asset, assetId: 'Synthetic Person 0012.png' },
+        { ...asset, assetId: 'Synthetic_Person_0012.png' },
         { ...asset, assetId: 'Synthetic Person 001.png', state: 'deleted' },
       ],
       getSampleList()
     );
     expect(warning).toEqual([]);
+  });
+
+  it('detects filename PII across underscore, hyphen, dot, and subfolder path boundaries (R-30)', () => {
+    const sampleAssets = getSampleAssets();
+    const base = sampleAssets[0]!;
+    const candidates: AssetTagState[] = [
+      { ...base, assetId: 'day1/Synthetic_Person_001_clip.png' },
+      { ...base, assetId: 'synthetic-person-002-audio.wav' },
+      { ...base, assetId: 'Synthetic.Person.001/IMG-0001.png' },
+    ];
+    const warnings = detectFilenamePiiWarnings(candidates, getSampleList());
+    expect(warnings).toHaveLength(3);
+    for (const warning of warnings) {
+      expect(warning.message).toBe('This asset filename may identify a participant.');
+    }
+  });
+
+  it('bumps export filename by 1 second when existingNames already holds that filename', () => {
+    const existing = new Set(['asset_export_LAB-A_20261104T100000Z.csv']);
+    expect(buildExportFileName('LAB-A', new Date(EXPORTED_AT), existing)).toBe(
+      'asset_export_LAB-A_20261104T100001Z.csv'
+    );
   });
 });

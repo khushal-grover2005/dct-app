@@ -248,7 +248,7 @@ export const VideoViewer: React.FC<VideoViewerProps> = ({
               data-testid="video-play-pause-btn"
               onClick={togglePlayPause}
               aria-label={isPlaying ? 'Pause (Space)' : 'Play (Space)'}
-              className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded bg-sky-600 hover:bg-sky-500 text-white font-medium transition"
+              className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded bg-sky-700 hover:bg-sky-600 text-white font-medium transition"
             >
               {isPlaying ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
               <span>{isPlaying ? 'Pause' : 'Play'}</span>
@@ -287,8 +287,8 @@ export const VideoViewer: React.FC<VideoViewerProps> = ({
                 onClick={() => handleSpeedChange(rate)}
                 className={`px-2 py-1 rounded font-mono transition ${
                   playbackRate === rate
-                    ? 'bg-sky-600 text-white'
-                    : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+                    ? 'bg-sky-700 text-white'
+                    : 'bg-slate-700 text-slate-200 hover:bg-slate-600'
                 }`}
               >
                 {rate}×

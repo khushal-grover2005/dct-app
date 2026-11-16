@@ -59,14 +59,34 @@ export function useAppPipeline(options?: UseAppPipelineOptions): AppPipeline {
   const detectedProgressRef = useRef<ProgressDocument | null>(null);
   const consentedListRef = useRef<ConsentedListResult | null>(null);
   const assetsRef = useRef<IngestedAsset[]>([]);
+  const pendingHashesRef = useRef<Record<string, string>>({});
+  const hashFlushTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   detectedProgressRef.current = detectedProgress;
   consentedListRef.current = consentedList;
   assetsRef.current = assets;
 
+  const flushPendingHashes = useCallback(() => {
+    if (hashFlushTimerRef.current !== null) {
+      clearTimeout(hashFlushTimerRef.current);
+      hashFlushTimerRef.current = null;
+    }
+    const batch = pendingHashesRef.current;
+    if (Object.keys(batch).length === 0) {
+      return;
+    }
+    pendingHashesRef.current = {};
+    setAssetHashes((prev) => ({ ...prev, ...batch }));
+  }, []);
+
   // Web Worker cleanup on unmount
   useEffect(() => {
     return () => {
+      if (hashFlushTimerRef.current !== null) {
+        clearTimeout(hashFlushTimerRef.current);
+        hashFlushTimerRef.current = null;
+      }
+      pendingHashesRef.current = {};
       hashManagerRef.current?.dispose();
       hashManagerRef.current = null;
     };
@@ -76,6 +96,11 @@ export function useAppPipeline(options?: UseAppPipelineOptions): AppPipeline {
   const ingestFolderHandle = useCallback(
     async (handle: FileSystemDirectoryHandle) => {
       // 1. Dispose any existing worker pool
+      if (hashFlushTimerRef.current !== null) {
+        clearTimeout(hashFlushTimerRef.current);
+        hashFlushTimerRef.current = null;
+      }
+      pendingHashesRef.current = {};
       if (hashManagerRef.current) {
         hashManagerRef.current.dispose();
         hashManagerRef.current = null;
@@ -190,7 +215,13 @@ export function useAppPipeline(options?: UseAppPipelineOptions): AppPipeline {
               onDone: ({ sha256 }) => {
                 asset.sha256 = sha256;
                 asset.hashProgress = 100;
-                setAssetHashes((prev) => ({ ...prev, [asset.assetId]: sha256 }));
+                pendingHashesRef.current[asset.assetId] = sha256;
+                if (hashFlushTimerRef.current === null) {
+                  hashFlushTimerRef.current = setTimeout(() => {
+                    hashFlushTimerRef.current = null;
+                    flushPendingHashes();
+                  }, 150);
+                }
                 resolve();
               },
               onError: (err) => {
@@ -211,6 +242,7 @@ export function useAppPipeline(options?: UseAppPipelineOptions): AppPipeline {
 
         // Guard against stale completion if another folder was opened
         if (hashManagerRef.current === manager) {
+          flushPendingHashes();
           setHashingCompleted(true);
           setAssets([...scanResult.assets]);
         }
@@ -220,7 +252,7 @@ export function useAppPipeline(options?: UseAppPipelineOptions): AppPipeline {
         setFolderWarnings((prev) => [...prev, `Failed to scan directory: ${msg}`]);
       }
     },
-    [options?.workerFactory]
+    [flushPendingHashes, options?.workerFactory]
   );
 
   // Action: Open folder via FSA API
@@ -337,6 +369,11 @@ export function useAppPipeline(options?: UseAppPipelineOptions): AppPipeline {
 
   // Action: Reset
   const resetAll = useCallback(() => {
+    if (hashFlushTimerRef.current !== null) {
+      clearTimeout(hashFlushTimerRef.current);
+      hashFlushTimerRef.current = null;
+    }
+    pendingHashesRef.current = {};
     hashManagerRef.current?.dispose();
     hashManagerRef.current = null;
     setDirectoryHandle(null);

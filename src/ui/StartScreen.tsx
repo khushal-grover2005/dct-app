@@ -70,7 +70,7 @@ export const StartScreen: React.FC<StartScreenProps> = ({
           </div>
           <div>
             <h2 className="text-base font-semibold text-slate-900">3. Collection Reference Name</h2>
-            <p className="text-xs text-slate-500">
+            <p className="text-xs text-slate-600">
               Unique collection reference prefilled from folder name, editable before export
             </p>
           </div>
@@ -120,7 +120,7 @@ export const StartScreen: React.FC<StartScreenProps> = ({
             </div>
 
             {!isReadyForTagging && (
-              <p className="text-xs text-slate-400">
+              <p className="text-xs text-slate-600">
                 {!folderName
                   ? 'Open a folder to start'
                   : !consentedList

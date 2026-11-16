@@ -4,6 +4,7 @@ import { WorkerInboundMessage, WorkerOutboundMessage } from './types';
 const cancelledJobs = new Set<string>();
 
 const DEFAULT_CHUNK_SIZE = 8 * 1024 * 1024; // 8 MB chunks
+const SUBTLE_FAST_PATH_MAX_BYTES = 64 * 1024 * 1024; // Hardware SubtleCrypto up to 64 MB unless custom chunk size requested
 
 function postMessageToMain(msg: WorkerOutboundMessage): void {
   self.postMessage(msg);
@@ -49,8 +50,10 @@ async function processHashJob(
     return;
   }
 
-  // Strategy 1: Fast native SubtleCrypto path for small files (<= 8 MB)
-  if (totalBytes <= chunkSizeBytes) {
+  // Strategy 1: Fast native SubtleCrypto path for small/medium files
+  const subtleLimit =
+    chunkSizeBytes === DEFAULT_CHUNK_SIZE ? SUBTLE_FAST_PATH_MAX_BYTES : chunkSizeBytes;
+  if (totalBytes <= subtleLimit) {
     const subtleHash = await hashSmallFileWithSubtleCrypto(file);
     if (subtleHash) {
       if (cancelledJobs.has(jobId)) {

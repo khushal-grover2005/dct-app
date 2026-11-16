@@ -124,11 +124,15 @@ export async function writeProgressFile(
 
   const serialized = JSON.stringify(document, null, 2);
 
+  let movedToTarget = false;
+  let tmpCreated = false;
+
   try {
     // 1. Write to temporary file first
     const tmpHandle = (await directoryHandle.getFileHandle(PROGRESS_TEMP_FILE_NAME, {
       create: true,
     })) as FileSystemFileHandleWithMove;
+    tmpCreated = true;
 
     if (typeof tmpHandle.createWritable !== 'function') {
       return { written: false, error: 'File handle does not support createWritable' };
@@ -142,6 +146,7 @@ export async function writeProgressFile(
     if (typeof tmpHandle.move === 'function') {
       try {
         await tmpHandle.move(PROGRESS_FILE_NAME);
+        movedToTarget = true;
         return { written: true };
       } catch {
         // Fallback below if handle.move() fails on local FSA mount
@@ -156,20 +161,20 @@ export async function writeProgressFile(
     await targetWritable.write(serialized);
     await targetWritable.close();
 
-    if (typeof directoryHandle.removeEntry === 'function') {
-      try {
-        await directoryHandle.removeEntry(PROGRESS_TEMP_FILE_NAME);
-      } catch {
-        // Ignore cleanup failures
-      }
-    }
-
     return { written: true };
   } catch (err) {
     return {
       written: false,
       error: err instanceof Error ? err.message : String(err),
     };
+  } finally {
+    if (tmpCreated && !movedToTarget && typeof directoryHandle.removeEntry === 'function') {
+      try {
+        await directoryHandle.removeEntry(PROGRESS_TEMP_FILE_NAME);
+      } catch {
+        // Ignore cleanup failures
+      }
+    }
   }
 }
 

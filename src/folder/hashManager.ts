@@ -34,6 +34,7 @@ export class HashManager {
   private totalBytes = 0;
   private completedBytes = 0;
   private onAggregateProgressCallback?: (progress: AggregateProgress) => void;
+  private lastProgressNotifyMs = -Infinity;
 
   constructor(options?: HashManagerOptions) {
     this.maxConcurrency = options?.maxConcurrency ?? 2;
@@ -159,7 +160,7 @@ export class HashManager {
           durationMs: message.durationMs,
         });
 
-        this.notifyAggregateProgress();
+        this.notifyAggregateProgress(this.completedAssets >= this.totalAssets);
         this.dispatchNext();
         break;
       }
@@ -172,7 +173,7 @@ export class HashManager {
         slot.currentBytesProcessed = 0;
 
         job.onError(new Error(message.error));
-        this.notifyAggregateProgress();
+        this.notifyAggregateProgress(this.completedAssets >= this.totalAssets);
         this.dispatchNext();
         break;
       }
@@ -185,7 +186,7 @@ export class HashManager {
         slot.currentBytesProcessed = 0;
 
         job.onCancelled?.();
-        this.notifyAggregateProgress();
+        this.notifyAggregateProgress(this.completedAssets >= this.totalAssets);
         this.dispatchNext();
         break;
       }
@@ -209,10 +210,17 @@ export class HashManager {
     this.dispatchNext();
   }
 
-  private notifyAggregateProgress(): void {
+  private notifyAggregateProgress(force = false): void {
     if (!this.onAggregateProgressCallback) {
       return;
     }
+
+    const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
+    const isComplete = this.completedAssets >= this.totalAssets;
+    if (!force && !isComplete && now - this.lastProgressNotifyMs < 100) {
+      return;
+    }
+    this.lastProgressNotifyMs = now;
 
     let activeBytes = 0;
     for (const slot of this.slots) {

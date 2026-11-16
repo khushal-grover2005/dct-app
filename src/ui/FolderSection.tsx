@@ -51,7 +51,7 @@ export const FolderSection: React.FC<FolderSectionProps> = ({ pipeline }) => {
           </div>
           <div>
             <h2 className="text-base font-semibold text-slate-900">1. Collection Folder</h2>
-            <p className="text-xs text-slate-500">Select directory of captured assets to inspect and hash</p>
+            <p className="text-xs text-slate-600">Select directory of captured assets to inspect and hash</p>
           </div>
         </div>
         <button
@@ -66,7 +66,7 @@ export const FolderSection: React.FC<FolderSectionProps> = ({ pipeline }) => {
       </div>
 
       {!folderName && !folderScanning && (
-        <div className="mt-4 p-4 rounded-md bg-slate-50 border border-dashed border-slate-200 text-center text-xs text-slate-500">
+        <div className="mt-4 p-4 rounded-md bg-slate-50 border border-dashed border-slate-200 text-center text-xs text-slate-600">
           No collection folder opened. Click &quot;Open collection folder&quot; to begin.
         </div>
       )}

@@ -232,4 +232,77 @@ describe('Tagging Workspace Reducer & Selectors (R-10..R-21, R-40, R-41)', () =>
     expect(getPeoplePanelPrompt('sensor').heading).toMatch(/wore or were measured/i);
     expect(getPeoplePanelPrompt('document').heading).toMatch(/named, pictured/i);
   });
+
+  it('blocks tag, bystander, and no-person mutations on missing assets and preserves unchanged state on redundant SYNC_ASSETS', () => {
+    const a1 = makeAsset({ assetId: 'IMG-0001.png' });
+    let state = taggingReducer(INITIAL_TAGGING_WORKSPACE_STATE, {
+      type: 'SYNC_ASSETS',
+      assets: [a1],
+      resetTags: true,
+    });
+
+    state = taggingReducer(state, {
+      type: 'ADD_PERSON_TAG',
+      assetId: 'IMG-0001.png',
+      personId: 'p1',
+      isSelectable: true,
+    });
+
+    // Mark missing as reconciled from progress
+    state = {
+      ...state,
+      assets: state.assets.map((asset) => ({
+        ...asset,
+        presenceStatus: 'missing',
+        bystanderCount: 2,
+      })),
+    };
+
+    const lockedSnapshot = state;
+    expect(
+      taggingReducer(lockedSnapshot, {
+        type: 'REMOVE_PERSON_TAG',
+        assetId: 'IMG-0001.png',
+        personId: 'p1',
+      })
+    ).toBe(lockedSnapshot);
+    expect(
+      taggingReducer(lockedSnapshot, {
+        type: 'INCREMENT_BYSTANDER',
+        assetId: 'IMG-0001.png',
+      })
+    ).toBe(lockedSnapshot);
+    expect(
+      taggingReducer(lockedSnapshot, {
+        type: 'DECREMENT_BYSTANDER',
+        assetId: 'IMG-0001.png',
+      })
+    ).toBe(lockedSnapshot);
+    expect(
+      taggingReducer(lockedSnapshot, {
+        type: 'SET_BYSTANDER_COUNT',
+        assetId: 'IMG-0001.png',
+        count: 0,
+      })
+    ).toBe(lockedSnapshot);
+    expect(
+      taggingReducer(lockedSnapshot, {
+        type: 'TOGGLE_NO_PERSON',
+        assetId: 'IMG-0001.png',
+      })
+    ).toBe(lockedSnapshot);
+
+    // Redundant SYNC_ASSETS on active collection returns exact same state reference
+    const activeState = taggingReducer(INITIAL_TAGGING_WORKSPACE_STATE, {
+      type: 'SYNC_ASSETS',
+      assets: [a1],
+      resetTags: true,
+    });
+    const resynced = taggingReducer(activeState, {
+      type: 'SYNC_ASSETS',
+      assets: [a1],
+      resetTags: false,
+    });
+    expect(resynced).toBe(activeState);
+  });
 });
