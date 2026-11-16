@@ -32,7 +32,10 @@ async function readChunkText(blob: Blob): Promise<string> {
   });
 }
 
-async function extractFirstLinesAndCount(file: File): Promise<{
+async function extractFirstLinesAndCount(
+  file: File,
+  isCancelled?: () => boolean
+): Promise<{
   lines: string[];
   totalLines: number;
 }> {
@@ -48,6 +51,9 @@ async function extractFirstLinesAndCount(file: File): Promise<{
   const decoder = new TextDecoder('utf-8');
 
   while (offset < file.size) {
+    if (isCancelled?.()) {
+      return { lines, totalLines };
+    }
     const end = Math.min(offset + CHUNK_SIZE_BYTES, file.size);
     const slice = file.slice(offset, end);
 
@@ -103,7 +109,7 @@ export const SensorViewer: React.FC<SensorViewerProps> = ({ asset, file }) => {
     let cancelled = false;
     setPreview({ lines: [], totalLines: 0, truncated: false, loading: true });
 
-    extractFirstLinesAndCount(file)
+    extractFirstLinesAndCount(file, () => cancelled)
       .then(({ lines, totalLines }) => {
         if (cancelled) return;
         setPreview({
@@ -182,16 +188,21 @@ export const SensorViewer: React.FC<SensorViewerProps> = ({ asset, file }) => {
           Failed to read sensor file: {preview.error}
         </div>
       ) : preview.loading ? (
-        <div className="p-6 text-xs text-slate-500">Reading text preview...</div>
+        <div className="p-6 text-xs text-slate-600">Reading text preview...</div>
       ) : preview.lines.length === 0 ? (
-        <div className="p-6 text-xs text-slate-500 italic">File is empty (0 lines).</div>
+        <div className="p-6 text-xs text-slate-600 italic">File is empty (0 lines).</div>
       ) : (
-        <div className="flex-1 overflow-auto bg-slate-950 text-slate-100 font-mono text-xs leading-5">
+        <div
+          tabIndex={0}
+          role="region"
+          aria-label="Sensor data preview"
+          className="flex-1 overflow-auto bg-slate-950 text-slate-100 font-mono text-xs leading-5 focus:outline-none focus:ring-2 focus:ring-sky-500"
+        >
           <table className="w-full border-collapse">
             <tbody>
               {preview.lines.map((line, index) => (
                 <tr key={index} className="hover:bg-slate-900/80 border-b border-slate-900/50">
-                  <td className="px-3 py-0.5 text-right select-none text-slate-500 w-12 border-r border-slate-800">
+                  <td className="px-3 py-0.5 text-right select-none text-slate-400 w-12 border-r border-slate-800">
                     {index + 1}
                   </td>
                   <td className="px-3 py-0.5 whitespace-pre">{line}</td>

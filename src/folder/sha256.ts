@@ -22,34 +22,6 @@ const K = new Uint32Array([
   0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2,
 ]);
 
-function rotr(x: number, n: number): number {
-  return (x >>> n) | (x << (32 - n));
-}
-
-function ch(x: number, y: number, z: number): number {
-  return (x & y) ^ (~x & z);
-}
-
-function maj(x: number, y: number, z: number): number {
-  return (x & y) ^ (x & z) ^ (y & z);
-}
-
-function sigma0(x: number): number {
-  return rotr(x, 2) ^ rotr(x, 13) ^ rotr(x, 22);
-}
-
-function sigma1(x: number): number {
-  return rotr(x, 6) ^ rotr(x, 11) ^ rotr(x, 25);
-}
-
-function gamma0(x: number): number {
-  return rotr(x, 7) ^ rotr(x, 18) ^ (x >>> 3);
-}
-
-function gamma1(x: number): number {
-  return rotr(x, 17) ^ rotr(x, 19) ^ (x >>> 10);
-}
-
 export class StreamingSha256 {
   private h: Uint32Array;
   private buffer: Uint8Array;
@@ -84,7 +56,7 @@ export class StreamingSha256 {
       const needed = 64 - this.bufferLength;
       if (len >= needed) {
         this.buffer.set(chunk.subarray(0, needed), this.bufferLength);
-        this.processBlock(this.buffer, 0);
+        this.processBlocks(this.buffer, 0, 64);
         this.bufferLength = 0;
         offset += needed;
       } else {
@@ -94,10 +66,9 @@ export class StreamingSha256 {
       }
     }
 
-    // Process full 64-byte blocks directly from chunk
-    while (offset + 64 <= len) {
-      this.processBlock(chunk, offset);
-      offset += 64;
+    // Process all full 64-byte blocks with local H registers across the whole chunk
+    if (offset + 64 <= len) {
+      offset = this.processBlocks(chunk, offset, len);
     }
 
     // Retain any remaining trailing bytes
@@ -110,61 +81,84 @@ export class StreamingSha256 {
     return this;
   }
 
-  private processBlock(block: Uint8Array, offset: number): void {
+  private processBlocks(block: Uint8Array, startOffset: number, limit: number): number {
     const w = this.w;
+    const hArr = this.h;
+    let h0 = hArr[0]!;
+    let h1 = hArr[1]!;
+    let h2 = hArr[2]!;
+    let h3 = hArr[3]!;
+    let h4 = hArr[4]!;
+    let h5 = hArr[5]!;
+    let h6 = hArr[6]!;
+    let h7 = hArr[7]!;
 
-    // Load first 16 words big-endian
-    for (let i = 0; i < 16; i++) {
-      const idx = offset + i * 4;
-      const b0 = block[idx] ?? 0;
-      const b1 = block[idx + 1] ?? 0;
-      const b2 = block[idx + 2] ?? 0;
-      const b3 = block[idx + 3] ?? 0;
-      w[i] = (b0 << 24) | (b1 << 16) | (b2 << 8) | b3;
+    let offset = startOffset;
+    while (offset + 64 <= limit) {
+      for (let i = 0, idx = offset; i < 16; i++, idx += 4) {
+        w[i] =
+          ((block[idx]! << 24) |
+            (block[idx + 1]! << 16) |
+            (block[idx + 2]! << 8) |
+            block[idx + 3]!) |
+          0;
+      }
+
+      for (let t = 16; t < 64; t++) {
+        const wt2 = w[t - 2]!;
+        const wt15 = w[t - 15]!;
+        const g1 = ((wt2 >>> 17) | (wt2 << 15)) ^ ((wt2 >>> 19) | (wt2 << 13)) ^ (wt2 >>> 10);
+        const g0 = ((wt15 >>> 7) | (wt15 << 25)) ^ ((wt15 >>> 18) | (wt15 << 14)) ^ (wt15 >>> 3);
+        w[t] = (g1 + w[t - 7]! + g0 + w[t - 16]!) | 0;
+      }
+
+      let a = h0;
+      let b = h1;
+      let c = h2;
+      let d = h3;
+      let e = h4;
+      let f = h5;
+      let g = h6;
+      let h = h7;
+
+      for (let t = 0; t < 64; t++) {
+        const s1 = ((e >>> 6) | (e << 26)) ^ ((e >>> 11) | (e << 21)) ^ ((e >>> 25) | (e << 7));
+        const chVal = (e & f) ^ (~e & g);
+        const t1 = (h + s1 + chVal + K[t]! + w[t]!) | 0;
+        const s0 = ((a >>> 2) | (a << 30)) ^ ((a >>> 13) | (a << 19)) ^ ((a >>> 22) | (a << 10));
+        const majVal = (a & b) ^ (a & c) ^ (b & c);
+        const t2 = (s0 + majVal) | 0;
+
+        h = g;
+        g = f;
+        f = e;
+        e = (d + t1) | 0;
+        d = c;
+        c = b;
+        b = a;
+        a = (t1 + t2) | 0;
+      }
+
+      h0 = (h0 + a) | 0;
+      h1 = (h1 + b) | 0;
+      h2 = (h2 + c) | 0;
+      h3 = (h3 + d) | 0;
+      h4 = (h4 + e) | 0;
+      h5 = (h5 + f) | 0;
+      h6 = (h6 + g) | 0;
+      h7 = (h7 + h) | 0;
+      offset += 64;
     }
 
-    // Expand to 64 words
-    for (let t = 16; t < 64; t++) {
-      const wt2 = w[t - 2] ?? 0;
-      const wt7 = w[t - 7] ?? 0;
-      const wt15 = w[t - 15] ?? 0;
-      const wt16 = w[t - 16] ?? 0;
-      w[t] = (gamma1(wt2) + wt7 + gamma0(wt15) + wt16) | 0;
-    }
-
-    let a = this.h[0] ?? 0;
-    let b = this.h[1] ?? 0;
-    let c = this.h[2] ?? 0;
-    let d = this.h[3] ?? 0;
-    let e = this.h[4] ?? 0;
-    let f = this.h[5] ?? 0;
-    let g = this.h[6] ?? 0;
-    let h = this.h[7] ?? 0;
-
-    for (let t = 0; t < 64; t++) {
-      const wt = w[t] ?? 0;
-      const kt = K[t] ?? 0;
-      const t1 = (h + sigma1(e) + ch(e, f, g) + kt + wt) | 0;
-      const t2 = (sigma0(a) + maj(a, b, c)) | 0;
-
-      h = g;
-      g = f;
-      f = e;
-      e = (d + t1) | 0;
-      d = c;
-      c = b;
-      b = a;
-      a = (t1 + t2) | 0;
-    }
-
-    this.h[0] = ((this.h[0] ?? 0) + a) | 0;
-    this.h[1] = ((this.h[1] ?? 0) + b) | 0;
-    this.h[2] = ((this.h[2] ?? 0) + c) | 0;
-    this.h[3] = ((this.h[3] ?? 0) + d) | 0;
-    this.h[4] = ((this.h[4] ?? 0) + e) | 0;
-    this.h[5] = ((this.h[5] ?? 0) + f) | 0;
-    this.h[6] = ((this.h[6] ?? 0) + g) | 0;
-    this.h[7] = ((this.h[7] ?? 0) + h) | 0;
+    hArr[0] = h0;
+    hArr[1] = h1;
+    hArr[2] = h2;
+    hArr[3] = h3;
+    hArr[4] = h4;
+    hArr[5] = h5;
+    hArr[6] = h6;
+    hArr[7] = h7;
+    return offset;
   }
 
   public digest(): string {
@@ -183,7 +177,7 @@ export class StreamingSha256 {
       for (let i = this.bufferLength; i < 64; i++) {
         this.buffer[i] = 0;
       }
-      this.processBlock(this.buffer, 0);
+      this.processBlocks(this.buffer, 0, 64);
       this.bufferLength = 0;
     }
 
@@ -206,7 +200,7 @@ export class StreamingSha256 {
     this.buffer[62] = (lowBits >>> 8) & 0xff;
     this.buffer[63] = lowBits & 0xff;
 
-    this.processBlock(this.buffer, 0);
+    this.processBlocks(this.buffer, 0, 64);
 
     // Format as 64-character lowercase hex string
     let hex = '';

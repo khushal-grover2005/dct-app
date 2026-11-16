@@ -1,5 +1,7 @@
-import React from 'react';
+import React, { useState } from 'react';
 import type { IngestedAsset, AssetType, CaptureTimeSource } from '../folder';
+
+const INITIAL_RENDER_CAP = 100;
 
 interface AssetTableProps {
   assets: IngestedAsset[];
@@ -28,19 +30,38 @@ function formatFileSize(bytes: number): string {
 }
 
 export const AssetTable: React.FC<AssetTableProps> = ({ assets, assetHashes = {} }) => {
+  const [showAllRows, setShowAllRows] = useState(false);
+
   if (assets.length === 0) {
     return null;
   }
 
+  const isTruncated = !showAllRows && assets.length > INITIAL_RENDER_CAP;
+  const visibleAssets = isTruncated ? assets.slice(0, INITIAL_RENDER_CAP) : assets;
+
   return (
     <div className="bg-white rounded-lg border border-slate-200 shadow-sm overflow-hidden mb-6">
-      <div className="px-6 py-4 border-b border-slate-200 bg-slate-50 flex justify-between items-center">
+      <div className="px-6 py-4 border-b border-slate-200 bg-slate-50 flex flex-wrap justify-between items-center gap-2">
         <h3 className="text-sm font-semibold text-slate-800">Scanned Assets Catalog ({assets.length})</h3>
-        <span className="text-xs text-slate-500">Asset paths normalized with &apos;/&apos;</span>
+        <div className="flex items-center gap-3">
+          {assets.length > INITIAL_RENDER_CAP && (
+            <button
+              type="button"
+              data-testid="asset-table-toggle-all"
+              onClick={() => setShowAllRows((prev) => !prev)}
+              className="text-xs font-medium text-sky-800 hover:underline focus:outline-none focus:ring-2 focus:ring-slate-900 rounded px-1.5 py-0.5"
+            >
+              {showAllRows
+                ? `Show first ${INITIAL_RENDER_CAP}`
+                : `Show all ${assets.length} rows`}
+            </button>
+          )}
+          <span className="text-xs text-slate-600">Asset paths normalized with &apos;/&apos;</span>
+        </div>
       </div>
       <div className="overflow-x-auto">
         <table data-testid="asset-table" className="min-w-full divide-y divide-slate-200 text-left text-xs">
-          <thead className="bg-slate-50 text-slate-600 font-medium uppercase tracking-wider">
+          <thead className="bg-slate-50 text-slate-700 font-medium uppercase tracking-wider">
             <tr>
               <th scope="col" className="px-4 py-3">Asset ID</th>
               <th scope="col" className="px-4 py-3">Type</th>
@@ -51,7 +72,7 @@ export const AssetTable: React.FC<AssetTableProps> = ({ assets, assetHashes = {}
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-slate-100">
-            {assets.map((asset) => {
+            {visibleAssets.map((asset) => {
               const sourceInfo = SOURCE_BADGES[asset.captureTimeSource];
               const computedHash = assetHashes[asset.assetId] || asset.sha256;
 
@@ -99,9 +120,9 @@ export const AssetTable: React.FC<AssetTableProps> = ({ assets, assetHashes = {}
                     {computedHash ? (
                       <span>{computedHash}</span>
                     ) : asset.hashProgress !== undefined ? (
-                      <span className="text-blue-600 font-sans">{asset.hashProgress}%</span>
+                      <span className="text-blue-700 font-sans">{asset.hashProgress}%</span>
                     ) : (
-                      <span className="text-slate-400 font-sans">Queued</span>
+                      <span className="text-slate-600 font-sans">Queued</span>
                     )}
                   </td>
                 </tr>

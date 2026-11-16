@@ -21,18 +21,18 @@ export const BrowserGate: React.FC<BrowserGateProps> = ({ children, supportedOve
 
   if (!isSupported) {
     return (
-      <div
+      <main
         id="browser-gate-unsupported"
         role="alert"
         aria-live="polite"
         className="min-h-screen w-full flex items-center justify-center bg-slate-50 p-6"
       >
         <div className="max-w-md w-full bg-white rounded-lg border border-slate-200 p-8 shadow-sm text-center">
-          <p className="text-base font-medium text-slate-800 leading-relaxed">
+          <h1 className="text-base font-medium text-slate-800 leading-relaxed">
             This tool requires desktop Google Chrome or Microsoft Edge to access local folders directly.
-          </p>
+          </h1>
         </div>
-      </div>
+      </main>
     );
   }
 

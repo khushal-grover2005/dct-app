@@ -1,5 +1,44 @@
 # Session Log
 
+## 2026-11-16 — Increment 5: Finish, Keyboard & Accessibility, Scale, Warnings & Documentation
+
+### What Changed
+- **Streaming 4 GB MP4 ingestion & performance optimization**:
+  - Updated `src/folder/captureTime.ts` (`extractMp4CreationTime` / `extractIsomFtypAndMoov`) to walk top-level ISOBMFF boxes via small slice reads and skip multi-GB `mdat` payloads in O(1) to find `moov`/`mvhd` creation time even when `moov` sits after a 4 GiB media box.
+  - Optimized `src/folder/sha256.ts` (`processBlocks` with local `h0..h7` registers), expanded the `SubtleCrypto` fast path to 64 MB in `src/folder/hashWorker.ts`, throttled progress updates (`100 ms`, forced on completion) in `src/folder/hashManager.ts`, and batched React `assetHashes` updates (`150 ms` timer + completion flush) in `src/app/useAppPipeline.ts`.
+  - Added `finally` `.tmp` cleanup in `src/folder/progressWriter.ts` so failed writes leave no `.dct-progress.json.tmp` artifacts behind.
+- **Scale UI responsiveness & defensive guards**:
+  - Virtualized `src/tagging/AssetListPane.tsx` for folders >= 80 assets using `paddingTop`/`paddingBottom` inside `role="listbox"` (`React.memo` row rendering + active-item auto-scroll), locked workspace shell height in `src/app/App.tsx` and `src/tagging/TaggingWorkspace.tsx` (`memoized onSelectAsset`), and capped `src/ui/AssetTable.tsx` initial render at 100 rows with a show-all toggle.
+  - Added `isCancelled?.()` chunk-read cancellation checks in `src/viewers/SensorViewer.tsx`, guarded missing assets in `src/tagging/reducer.ts` (avoiding redundant sort/allocation on unchanged `SYNC_ASSETS`), and preserved byte-immutability invariants.
+- **Accessibility & full keyboard usability (T-13, WCAG 2.1 AA)**:
+  - Converted `src/app/BrowserGate.tsx` unsupported container to semantic `<main><h1>` landmarks; upgraded `src/ui/ListSection.tsx` file upload trigger to a single keyboard-accessible native file input wrapper with `peer-focus-visible` indicator; added `tabIndex={0}` + `role="region"` scrollable access in `src/viewers/SensorViewer.tsx`; fixed `label-content-name-mismatch` labels in `src/viewers/CenterViewerPane.tsx` and `src/viewers/ImageViewer.tsx`.
+  - Added keyboard-operable splitters (`role="separator"`, `ArrowLeft`/`ArrowRight`/`Home`/`End`), refined `Space` vs button handling in `src/tagging/TaggingWorkspace.tsx`, and upgraded text/background contrast across Start, Workspace, Review, and Corrections (`App.tsx`, `ListSummary.tsx`, `StartScreen.tsx`, `FolderSection.tsx`, `ListSection.tsx`, `ResumeBanner.tsx`, `PeoplePanel.tsx`, `ReviewScreen.tsx`, `CorrectionsScreen.tsx`).
+- **Warnings & export edge cases**:
+  - Strengthened `detectFilenamePiiWarnings` in `src/review/sheetWriter.ts` for `[\\s._-]+` separator variants (R-30) and added same-second collision suffixing (`_2`, `_3`) in `buildExportFileName` / `useReviewExport.ts`.
+  - Extended `src/ui/ResumeBanner.tsx` list deletion reminder evaluation (R-37) across both saved exports (`savedEntries`) and `initialProgressSaves`.
+- **Fixture & Windows tooling hygiene**:
+  - Added `.gitattributes` (`docs/consent-tagging/examples/** -text`) so canonical LF sample fixtures (e.g., `SNS-0007.csv`) keep exact byte checksums under Windows checkouts.
+  - Resolved Windows directory junction root in `vitest.config.ts` via `fs.realpathSync`.
+- **Tests & Documentation**:
+  - Added unit tests in `tests/unit/folder/captureTime.test.ts`, `tests/unit/tagging/reducer.test.ts`, and `tests/unit/review/sheetWriter.test.ts`.
+  - Added Increment 5 E2E suite `e2e/finish-scale-a11y.spec.ts` covering `T-13a`, `T-13b` (`@axe-core/playwright` audit + keyboard-only end-to-end collection & export), `T-14` (1,000-asset virtualization + < 200 ms switching + R-30 + R-37), `T-16a` (byte immutability), and `T-16b` (4 GiB sparse MP4 metadata & background hashing).
+  - Authored `docs/consent-tagging/user-guide.md` with 4 synthetic screenshots in `docs/consent-tagging/images/` (`start-screen.png`, `tagging-workspace.png`, `review-screen.png`, `corrections-screen.png`) and linked it from `README.md`.
+
+### Tests Passing
+- `npx tsc --noEmit`: passes (0 errors).
+- `npm run lint` (`eslint . --max-warnings 0`): passes (0 errors, 0 warnings).
+- `npm run build` (`tsc --noEmit && vite build`): passes cleanly.
+- `python -m unittest tools/test_validate_export.py`: **20/20 pass**.
+- `npm test` (`vitest run`): **355/355 pass across 28/28 test files** (including all 56 golden-case assertions matching `tools/validate_export.py --json`).
+- `npm run e2e` (`playwright test`): **50 passed, 24 skipped** across Chromium and Firefox (`T-02.1`–`T-02.8`, CSP tests, Start/Workspace/Review/Corrections flows, `T-13a`, `T-13b`, `T-14`, `T-16a`, `T-16b`).
+- Sample collection sheet saved by the app validated with `tools/validate_export.py`: `VALID: 9 rows, 8 assets, 0 errors, 1 warnings` (`W02` on held `IMG-0002.png`).
+
+### Deferred
+- None.
+
+### Questions Added
+- None.
+
 ## 2026-11-13 — Increment 4: Resume, Corrections & Deletion Requests
 
 ### What Changed

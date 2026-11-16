@@ -194,5 +194,82 @@ describe('Capture Time Extraction', () => {
       expect(result.source).toBe('last_modified');
       expect(result.capturedAt).toBe('2026-11-04T08:00:00Z');
     });
+
+    it('extracts mvhd creation time from a 4 GiB+ MP4 with tail-placed moov in O(1) header slices', async () => {
+      const raw = fs.readFileSync(path.join(sampleDir, 'VID-0005.mp4'));
+      const extractBox = (targetType: string): Uint8Array => {
+        let offset = 0;
+        while (offset + 8 <= raw.length) {
+          const size = raw.readUInt32BE(offset);
+          const type = raw.subarray(offset + 4, offset + 8).toString('ascii');
+          if (type === targetType) {
+            return new Uint8Array(raw.subarray(offset, offset + size));
+          }
+          offset += size;
+        }
+        throw new Error(`Missing box ${targetType}`);
+      };
+
+      const ftypBox = extractBox('ftyp');
+      const moovBox = extractBox('moov');
+      const mdatSize = 4 * 1024 * 1024 * 1024; // 4 GiB sparse media payload
+      const mdatHeader = new Uint8Array(16);
+      const mdatView = new DataView(mdatHeader.buffer);
+      mdatView.setUint32(0, 1, false); // Extended 64-bit box size marker
+      mdatHeader.set([0x6d, 0x64, 0x61, 0x74], 4); // 'mdat'
+      mdatView.setBigUint64(8, BigInt(mdatSize), false);
+
+      const mdatStart = ftypBox.length;
+      const moovStart = mdatStart + mdatSize;
+      const totalSize = moovStart + moovBox.length;
+      let sliceReads = 0;
+
+      const virtualBigFile = {
+        name: 'huge_4gb_tail_moov.mp4',
+        size: totalSize,
+        lastModified: Date.UTC(2026, 10, 4, 9, 0, 0),
+        slice(start = 0, end = totalSize): Blob {
+          sliceReads++;
+          const clampedEnd = Math.min(end, totalSize);
+          const length = Math.max(0, clampedEnd - start);
+          const out = new Uint8Array(length);
+
+          const copyRange = (segStart: number, segBytes: Uint8Array) => {
+            const segEnd = segStart + segBytes.length;
+            const overlapStart = Math.max(start, segStart);
+            const overlapEnd = Math.min(clampedEnd, segEnd);
+            if (overlapStart < overlapEnd) {
+              out.set(
+                segBytes.subarray(overlapStart - segStart, overlapEnd - segStart),
+                overlapStart - start
+              );
+            }
+          };
+
+          copyRange(0, ftypBox);
+          copyRange(mdatStart, mdatHeader);
+          copyRange(moovStart, moovBox);
+          return new Blob([out]);
+        },
+      } as unknown as File;
+
+      const result = await extractCaptureTime(virtualBigFile, 'video');
+      expect(result.source).toBe('mp4box');
+      expect(result.capturedAt).toBe('2026-11-04T06:40:00Z');
+      expect(sliceReads).toBeLessThanOrEqual(10);
+    });
+
+    it('fails fast without scanning full file when ISOBMFF box header is invalid', async () => {
+      const badBox = new Uint8Array(32);
+      const view = new DataView(badBox.buffer);
+      view.setUint32(0, 4, false); // Invalid < 8 box size
+      badBox.set([0x66, 0x74, 0x79, 0x70], 4);
+      const file = new File([badBox], 'badbox.mp4', {
+        lastModified: Date.UTC(2026, 10, 4, 8, 15, 0),
+      });
+      const result = await extractCaptureTime(file, 'video');
+      expect(result.source).toBe('last_modified');
+      expect(result.capturedAt).toBe('2026-11-04T08:15:00Z');
+    });
   });
 });

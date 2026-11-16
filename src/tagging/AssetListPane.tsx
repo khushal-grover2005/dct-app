@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   FileImage,
   FileVideo,
@@ -19,6 +19,10 @@ import type {
   TaggingFilterType,
   WorkspaceStats,
 } from './types';
+
+const VIRTUALIZATION_THRESHOLD = 80;
+const VIRTUAL_ROW_HEIGHT_PX = 68;
+const VIRTUAL_OVERSCAN_ROWS = 6;
 
 interface AssetListPaneProps {
   assets: AssetTagState[];
@@ -141,6 +145,87 @@ const AssetThumbnail: React.FC<AssetThumbnailProps> = ({ asset, file }) => {
   );
 };
 
+interface AssetListRowProps {
+  asset: AssetTagState;
+  file?: File;
+  isSelected: boolean;
+  fixedHeightPx?: number;
+  onSelectAsset: (assetId: string) => void;
+}
+
+const AssetListRow: React.FC<AssetListRowProps> = React.memo(
+  ({ asset, file, isSelected, fixedHeightPx, onSelectAsset }) => {
+    const statusInfo = getAssetStatusInfo(asset);
+    const showSecondaryDecisionPills =
+      statusInfo.primaryStatus === 'not_fully_reviewed' ||
+      statusInfo.primaryStatus === 'changed' ||
+      statusInfo.primaryStatus === 'missing';
+
+    return (
+      <button
+        type="button"
+        role="option"
+        aria-selected={isSelected}
+        data-testid={`workspace-asset-item-${asset.assetId}`}
+        onClick={() => onSelectAsset(asset.assetId)}
+        style={fixedHeightPx !== undefined ? { height: `${fixedHeightPx}px` } : undefined}
+        className={`w-full text-left px-3 py-2.5 flex items-start space-x-2.5 transition focus:outline-none focus:ring-2 focus:ring-inset focus:ring-slate-900 overflow-hidden ${
+          isSelected ? 'bg-sky-50 border-l-4 border-l-slate-900' : 'hover:bg-slate-50'
+        }`}
+      >
+        <AssetThumbnail asset={asset} file={file} />
+
+        <div className="min-w-0 flex-1 space-y-1">
+          <div
+            className={`text-xs font-mono truncate ${
+              isSelected ? 'font-semibold text-slate-900' : 'text-slate-800'
+            }`}
+            title={asset.assetId}
+          >
+            {asset.assetId}
+          </div>
+
+          <div className="flex flex-wrap items-center gap-1">
+            <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-slate-100 text-slate-700 border border-slate-200">
+              {asset.assetType}
+            </span>
+
+            <span
+              data-testid={`workspace-asset-status-${asset.assetId}`}
+              className={`px-1.5 py-0.5 rounded text-[10px] font-medium border ${STATUS_BADGE_STYLES[statusInfo.variant]}`}
+            >
+              {statusInfo.label}
+            </span>
+
+            {showSecondaryDecisionPills && asset.personIds.length > 0 && (
+              <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-sky-50 text-sky-700 border border-sky-200">
+                tagged ({asset.personIds.length})
+              </span>
+            )}
+
+            {showSecondaryDecisionPills && asset.noPerson && (
+              <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-sky-50 text-sky-700 border border-sky-200">
+                no person
+              </span>
+            )}
+
+            {statusInfo.hasBystanders && statusInfo.primaryStatus !== 'bystander_only' && (
+              <span
+                data-testid={`workspace-asset-bystander-${asset.assetId}`}
+                className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-50 text-amber-800 border border-amber-300"
+              >
+                bystander ({asset.bystanderCount})
+              </span>
+            )}
+          </div>
+        </div>
+      </button>
+    );
+  }
+);
+
+AssetListRow.displayName = 'AssetListRow';
+
 export const AssetListPane: React.FC<AssetListPaneProps> = ({
   assets,
   activeAssetId,
@@ -156,8 +241,81 @@ export const AssetListPane: React.FC<AssetListPaneProps> = ({
   onSearchQueryChange,
   onClearFilters,
 }) => {
+  const listRef = useRef<HTMLDivElement>(null);
+  const [scrollTop, setScrollTop] = useState(0);
+  const [viewportHeight, setViewportHeight] = useState(600);
+
+  const isVirtualized = assets.length > VIRTUALIZATION_THRESHOLD;
+
+  useEffect(() => {
+    const el = listRef.current;
+    if (!el) return;
+
+    const updateHeight = () => {
+      if (el.clientHeight > 0) {
+        const maxBounded =
+          typeof window !== 'undefined' && window.innerHeight > 0
+            ? Math.min(el.clientHeight, window.innerHeight)
+            : el.clientHeight;
+        setViewportHeight(maxBounded);
+      }
+    };
+    updateHeight();
+
+    if (typeof ResizeObserver !== 'undefined') {
+      const observer = new ResizeObserver(updateHeight);
+      observer.observe(el);
+      return () => observer.disconnect();
+    }
+    return undefined;
+  }, [isVirtualized]);
+
+  // Keep active keyboard-selected asset visible inside the scroll container
+  useEffect(() => {
+    const el = listRef.current;
+    if (!el || !activeAssetId) return;
+
+    if (isVirtualized) {
+      const idx = assets.findIndex((a) => a.assetId === activeAssetId);
+      if (idx >= 0) {
+        const rowTop = idx * VIRTUAL_ROW_HEIGHT_PX;
+        const rowBottom = rowTop + VIRTUAL_ROW_HEIGHT_PX;
+        const height = el.clientHeight > 0 ? el.clientHeight : viewportHeight;
+        if (rowTop < el.scrollTop) {
+          el.scrollTop = rowTop;
+          setScrollTop(rowTop);
+        } else if (rowBottom > el.scrollTop + height) {
+          const nextTop = rowBottom - height;
+          el.scrollTop = nextTop;
+          setScrollTop(nextTop);
+        }
+      }
+      return;
+    }
+
+    const activeOption = el.querySelector<HTMLElement>('[aria-selected="true"]');
+    activeOption?.scrollIntoView?.({ block: 'nearest' });
+  }, [activeAssetId, assets, isVirtualized, viewportHeight]);
+
   const progressPercent =
     stats.totalCount > 0 ? Math.round((stats.doneCount / stats.totalCount) * 100) : 0;
+
+  let startIndex = 0;
+  let endIndex = assets.length;
+  let paddingTop = 0;
+  let paddingBottom = 0;
+
+  if (isVirtualized) {
+    startIndex = Math.max(0, Math.floor(scrollTop / VIRTUAL_ROW_HEIGHT_PX) - VIRTUAL_OVERSCAN_ROWS);
+    endIndex = Math.min(
+      assets.length,
+      Math.ceil((scrollTop + viewportHeight) / VIRTUAL_ROW_HEIGHT_PX) + VIRTUAL_OVERSCAN_ROWS
+    );
+    paddingTop = startIndex * VIRTUAL_ROW_HEIGHT_PX;
+    paddingBottom = (assets.length - endIndex) * VIRTUAL_ROW_HEIGHT_PX;
+  }
+
+  const visibleAssets = isVirtualized ? assets.slice(startIndex, endIndex) : assets;
 
   return (
     <aside
@@ -250,96 +408,38 @@ export const AssetListPane: React.FC<AssetListPaneProps> = ({
 
       {/* Asset Items List */}
       <div
-        role="listbox"
+        ref={listRef}
+        role={assets.length > 0 ? 'listbox' : undefined}
         aria-label="Collection assets"
         data-testid="workspace-asset-list"
+        onScroll={isVirtualized ? (e) => setScrollTop(e.currentTarget.scrollTop) : undefined}
+        style={isVirtualized ? { paddingTop: `${paddingTop}px`, paddingBottom: `${paddingBottom}px` } : undefined}
         className="flex-1 overflow-y-auto divide-y divide-slate-100"
       >
         {assets.length === 0 ? (
           <div className="p-6 text-center space-y-2">
-            <Filter className="w-6 h-6 text-slate-300 mx-auto" />
-            <p className="text-xs text-slate-500">No assets match active filters.</p>
+            <Filter className="w-6 h-6 text-slate-500 mx-auto" />
+            <p className="text-xs text-slate-600">No assets match active filters.</p>
             <button
               type="button"
               data-testid="clear-asset-filters-btn"
               onClick={onClearFilters}
-              className="text-xs font-medium text-sky-700 hover:underline"
+              className="text-xs font-medium text-sky-800 hover:underline focus:outline-none focus:ring-2 focus:ring-slate-900 rounded px-1"
             >
               Clear filters
             </button>
           </div>
         ) : (
-          assets.map((asset) => {
-            const isSelected = asset.assetId === activeAssetId;
-            const statusInfo = getAssetStatusInfo(asset);
-            const file = fileLookup.get(asset.assetId);
-            const showSecondaryDecisionPills =
-              statusInfo.primaryStatus === 'not_fully_reviewed' ||
-              statusInfo.primaryStatus === 'changed' ||
-              statusInfo.primaryStatus === 'missing';
-
-            return (
-              <button
-                key={asset.assetId}
-                type="button"
-                role="option"
-                aria-selected={isSelected}
-                data-testid={`workspace-asset-item-${asset.assetId}`}
-                onClick={() => onSelectAsset(asset.assetId)}
-                className={`w-full text-left px-3 py-2.5 flex items-start space-x-2.5 transition focus:outline-none focus:ring-2 focus:ring-inset focus:ring-slate-900 ${
-                  isSelected ? 'bg-sky-50 border-l-4 border-l-slate-900' : 'hover:bg-slate-50'
-                }`}
-              >
-                <AssetThumbnail asset={asset} file={file} />
-
-                <div className="min-w-0 flex-1 space-y-1">
-                  <div
-                    className={`text-xs font-mono truncate ${
-                      isSelected ? 'font-semibold text-slate-900' : 'text-slate-800'
-                    }`}
-                    title={asset.assetId}
-                  >
-                    {asset.assetId}
-                  </div>
-
-                  <div className="flex flex-wrap items-center gap-1">
-                    <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-slate-100 text-slate-600 border border-slate-200">
-                      {asset.assetType}
-                    </span>
-
-                    <span
-                      data-testid={`workspace-asset-status-${asset.assetId}`}
-                      className={`px-1.5 py-0.5 rounded text-[10px] font-medium border ${STATUS_BADGE_STYLES[statusInfo.variant]}`}
-                    >
-                      {statusInfo.label}
-                    </span>
-
-                    {showSecondaryDecisionPills && asset.personIds.length > 0 && (
-                      <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-sky-50 text-sky-700 border border-sky-200">
-                        tagged ({asset.personIds.length})
-                      </span>
-                    )}
-
-                    {showSecondaryDecisionPills && asset.noPerson && (
-                      <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-sky-50 text-sky-700 border border-sky-200">
-                        no person
-                      </span>
-                    )}
-
-                    {statusInfo.hasBystanders &&
-                      statusInfo.primaryStatus !== 'bystander_only' && (
-                        <span
-                          data-testid={`workspace-asset-bystander-${asset.assetId}`}
-                          className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-50 text-amber-800 border border-amber-300"
-                        >
-                          bystander ({asset.bystanderCount})
-                        </span>
-                      )}
-                  </div>
-                </div>
-              </button>
-            );
-          })
+          visibleAssets.map((asset) => (
+            <AssetListRow
+              key={asset.assetId}
+              asset={asset}
+              file={fileLookup.get(asset.assetId)}
+              isSelected={asset.assetId === activeAssetId}
+              fixedHeightPx={isVirtualized ? VIRTUAL_ROW_HEIGHT_PX : undefined}
+              onSelectAsset={onSelectAsset}
+            />
+          ))
         )}
       </div>
     </aside>

@@ -229,7 +229,7 @@ const AssetLink: React.FC<{
 
 const Metric: React.FC<{ label: string; value: number }> = ({ label, value }) => (
   <div className="rounded border border-slate-100 bg-slate-50 p-3">
-    <p className="text-xs text-slate-500">{label}</p>
+    <p className="text-xs text-slate-600">{label}</p>
     <p className="mt-1 text-xl font-semibold text-slate-900">{value}</p>
   </div>
 );

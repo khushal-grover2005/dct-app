@@ -90,7 +90,7 @@ export const CorrectionsScreen: React.FC<CorrectionsScreenProps> = ({
         </div>
 
         {corrections.heldAssets.length === 0 ? (
-          <p data-testid="held-assets-empty" className="text-sm text-slate-500">
+          <p data-testid="held-assets-empty" className="text-sm text-slate-600">
             No held assets with bystanders in this collection.
           </p>
         ) : (
@@ -301,7 +301,7 @@ export const CorrectionsScreen: React.FC<CorrectionsScreenProps> = ({
                   Found in folder: {corrections.deletionCheckResult.foundIds.length}
                 </div>
                 {corrections.deletionCheckResult.foundIds.length === 0 ? (
-                  <p className="mt-1 text-xs text-slate-500">No matching files currently in folder.</p>
+                  <p className="mt-1 text-xs text-slate-600">No matching files currently in folder.</p>
                 ) : (
                   <ul
                     data-testid="deletion-found-list"
@@ -322,7 +322,7 @@ export const CorrectionsScreen: React.FC<CorrectionsScreenProps> = ({
                   Not found: {corrections.deletionCheckResult.notFoundIds.length}
                 </div>
                 {corrections.deletionCheckResult.notFoundIds.length === 0 ? (
-                  <p className="mt-1 text-xs text-slate-500">All requested IDs were found.</p>
+                  <p className="mt-1 text-xs text-slate-600">All requested IDs were found.</p>
                 ) : (
                   <ul
                     data-testid="deletion-not-found-list"
@@ -406,32 +406,32 @@ export const CorrectionsScreen: React.FC<CorrectionsScreenProps> = ({
         </h3>
 
         {corrections.stagedAssetIds.length === 0 ? (
-          <p data-testid="correction-staged-empty" className="mt-2 text-sm text-slate-500">
+          <p data-testid="correction-staged-empty" className="mt-2 text-sm text-slate-600">
             No pending corrections or deletions staged yet. Redact or delete assets above to build a correction sheet.
           </p>
         ) : (
           <div className="mt-3 space-y-3">
             <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
               <div className="rounded border border-slate-200 bg-slate-50 p-3">
-                <div className="text-xs text-slate-500">Staged assets</div>
+                <div className="text-xs text-slate-600">Staged assets</div>
                 <div data-testid="correction-staged-count" className="mt-1 text-xl font-semibold">
                   {corrections.stagedAssetIds.length}
                 </div>
               </div>
               <div className="rounded border border-slate-200 bg-slate-50 p-3">
-                <div className="text-xs text-slate-500">Corrected</div>
+                <div className="text-xs text-slate-600">Corrected</div>
                 <div className="mt-1 text-xl font-semibold">
                   {corrections.preview?.correctedCount ?? 0}
                 </div>
               </div>
               <div className="rounded border border-slate-200 bg-slate-50 p-3">
-                <div className="text-xs text-slate-500">Deleted</div>
+                <div className="text-xs text-slate-600">Deleted</div>
                 <div className="mt-1 text-xl font-semibold">
                   {corrections.preview?.deletedCount ?? 0}
                 </div>
               </div>
               <div className="rounded border border-slate-200 bg-slate-50 p-3">
-                <div className="text-xs text-slate-500">Export rows</div>
+                <div className="text-xs text-slate-600">Export rows</div>
                 <div data-testid="correction-row-count" className="mt-1 text-xl font-semibold">
                   {corrections.preview?.rowCount ?? 0}
                 </div>

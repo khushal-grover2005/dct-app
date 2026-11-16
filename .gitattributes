@@ -1,0 +1,2 @@
+# Preserve exact byte-for-byte hashes for synthetic sample collections and golden fixtures across OS checkouts
+docs/consent-tagging/examples/** -text

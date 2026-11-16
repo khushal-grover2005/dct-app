@@ -1,10 +1,11 @@
 import React from 'react';
 import { History, AlertTriangle, Wrench, ShieldAlert, CheckCircle2 } from 'lucide-react';
-import type {
-  ProgressDocument,
-  ProgressReconciliationResult,
-  ProgressSaveEntry,
-  ListDeletionReminderStatus,
+import {
+  isListDeletionReminderDue,
+  type ProgressDocument,
+  type ProgressReconciliationResult,
+  type ProgressSaveEntry,
+  type ListDeletionReminderStatus,
 } from '../folder';
 
 interface ResumeBannerProps {
@@ -31,7 +32,12 @@ export const ResumeBanner: React.FC<ResumeBannerProps> = ({
       ? savedEntries
       : detectedProgress?.saves ?? [];
 
-  if (!detectedProgress && !progressReadError && !listDeletionReminder.due) {
+  const effectiveReminder =
+    detectedProgress && savedEntries && savedEntries.length > 0
+      ? isListDeletionReminderDue({ ...detectedProgress, saves: effectiveSaves })
+      : listDeletionReminder;
+
+  if (!detectedProgress && !progressReadError && !effectiveReminder.due) {
     return null;
   }
 
@@ -56,7 +62,7 @@ export const ResumeBanner: React.FC<ResumeBannerProps> = ({
         </div>
       )}
 
-      {listDeletionReminder.due && (
+      {effectiveReminder.due && (
         <div
           data-testid="list-deletion-reminder"
           role="status"
@@ -65,11 +71,11 @@ export const ResumeBanner: React.FC<ResumeBannerProps> = ({
           <ShieldAlert className="w-5 h-5 text-amber-700 flex-shrink-0 mt-0.5" />
           <div>
             <p className="font-semibold">
-              List deletion reminder ({listDeletionReminder.daysSinceLastSave} days since last save)
+              List deletion reminder ({effectiveReminder.daysSinceLastSave} days since last save)
             </p>
             <p className="text-amber-900 mt-0.5">
               The last exported sheet for this project is more than 7 days old (
-              <span className="font-mono">{listDeletionReminder.lastSavedAt}</span>). Please delete
+              <span className="font-mono">{effectiveReminder.lastSavedAt}</span>). Please delete
               the consented list file from this collection machine once the export is accepted.
             </p>
           </div>
@@ -118,7 +124,7 @@ export const ResumeBanner: React.FC<ResumeBannerProps> = ({
           {summary && (
             <div className="grid grid-cols-2 md:grid-cols-4 gap-2 pt-1 text-xs">
               <div className="bg-white rounded border border-slate-200 px-3 py-2">
-                <div className="text-slate-500">Restored tagged</div>
+                <div className="text-slate-600">Restored tagged</div>
                 <div
                   data-testid="resume-restored-count"
                   className="font-mono font-semibold text-slate-900 text-sm"
@@ -128,7 +134,7 @@ export const ResumeBanner: React.FC<ResumeBannerProps> = ({
               </div>
 
               <div className="bg-white rounded border border-slate-200 px-3 py-2">
-                <div className="text-slate-500">New untagged</div>
+                <div className="text-slate-600">New untagged</div>
                 <div
                   data-testid="resume-untagged-count"
                   className={`font-mono font-semibold text-sm ${
@@ -140,7 +146,7 @@ export const ResumeBanner: React.FC<ResumeBannerProps> = ({
               </div>
 
               <div className="bg-white rounded border border-slate-200 px-3 py-2">
-                <div className="text-slate-500">Missing files</div>
+                <div className="text-slate-600">Missing files</div>
                 <div
                   data-testid="resume-missing-count"
                   className={`font-mono font-semibold text-sm ${
@@ -152,11 +158,11 @@ export const ResumeBanner: React.FC<ResumeBannerProps> = ({
               </div>
 
               <div className="bg-white rounded border border-slate-200 px-3 py-2">
-                <div className="text-slate-500">Changed files</div>
+                <div className="text-slate-600">Changed files</div>
                 <div
                   data-testid="resume-changed-count"
                   className={`font-mono font-semibold text-sm ${
-                    summary.changedIds.length > 0 ? 'text-amber-700' : 'text-slate-900'
+                    summary.changedIds.length > 0 ? 'text-amber-800' : 'text-slate-900'
                   }`}
                 >
                   {summary.changedIds.length}

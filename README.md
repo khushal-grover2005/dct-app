@@ -39,3 +39,8 @@ python -m unittest tools/test_validate_export.py      # 20 tests, 18 golden case
 
 > Work on increment 1 of the DCT plan. Read AGENTS.md first, then the documents it lists.
 > Propose a plan before writing code.
+
+## Operator documentation
+
+- **User Guide**: [`docs/consent-tagging/user-guide.md`](docs/consent-tagging/user-guide.md) (walkthrough, keyboard shortcuts, review & export, corrections & deletion requests)
+- **Implementation & Architecture Notes**: [`docs/consent-tagging/increment-4-summary.md`](docs/consent-tagging/increment-4-summary.md) and [`docs/consent-tagging/session-log.md`](docs/consent-tagging/session-log.md)

@@ -154,10 +154,111 @@ async function readBlobAsArrayBuffer(blob: Blob | File): Promise<ArrayBuffer> {
   });
 }
 
+const MAX_ISOBMFF_BOX_HOPS = 2048;
+const MAX_FTYP_BOX_BYTES = 1024 * 1024;
+const MAX_MOOV_BOX_BYTES = 32 * 1024 * 1024;
+
+function parsePrintableBoxType(view: DataView): string | null {
+  if (view.byteLength < 8) {
+    return null;
+  }
+  let type = '';
+  for (let i = 4; i < 8; i++) {
+    const code = view.getUint8(i);
+    if (code < 0x20 || code > 0x7e) {
+      return null;
+    }
+    type += String.fromCharCode(code);
+  }
+  return type;
+}
+
+/**
+ * Walks top-level ISOBMFF box headers using tiny 16-byte slices so `mdat`
+ * payloads (including 4 GB+ videos) are skipped in O(1) without sequential reads.
+ */
+async function extractIsomFtypAndMoov(file: File): Promise<ArrayBuffer | null> {
+  if (file.size < 8) {
+    return null;
+  }
+
+  const slices: ArrayBuffer[] = [];
+  let foundMoov = false;
+  let offset = 0;
+  let hops = 0;
+
+  while (offset + 8 <= file.size && hops < MAX_ISOBMFF_BOX_HOPS) {
+    hops++;
+    const headerEnd = Math.min(offset + 16, file.size);
+    const headerBuf = await readBlobAsArrayBuffer(file.slice(offset, headerEnd));
+    if (headerBuf.byteLength < 8) {
+      return null;
+    }
+
+    const view = new DataView(headerBuf);
+    const boxType = parsePrintableBoxType(view);
+    if (!boxType) {
+      return null;
+    }
+
+    const size32 = view.getUint32(0, false);
+    let boxSize: number;
+    if (size32 === 0) {
+      boxSize = file.size - offset;
+    } else if (size32 === 1) {
+      if (headerBuf.byteLength < 16) {
+        return null;
+      }
+      const largeSize = view.getBigUint64(8, false);
+      if (largeSize > BigInt(Number.MAX_SAFE_INTEGER)) {
+        return null;
+      }
+      boxSize = Number(largeSize);
+    } else {
+      boxSize = size32;
+    }
+
+    if (!Number.isFinite(boxSize) || boxSize < 8 || offset + boxSize > file.size) {
+      return null;
+    }
+
+    if (boxType === 'ftyp' && boxSize <= MAX_FTYP_BOX_BYTES) {
+      slices.push(await readBlobAsArrayBuffer(file.slice(offset, offset + boxSize)));
+    } else if (boxType === 'moov') {
+      if (boxSize > MAX_MOOV_BOX_BYTES) {
+        return null;
+      }
+      slices.push(await readBlobAsArrayBuffer(file.slice(offset, offset + boxSize)));
+      foundMoov = true;
+      break;
+    }
+
+    offset += boxSize;
+  }
+
+  if (!foundMoov || slices.length === 0) {
+    return null;
+  }
+
+  const totalBytes = slices.reduce((sum, buf) => sum + buf.byteLength, 0);
+  const combined = new Uint8Array(totalBytes);
+  let writeOffset = 0;
+  for (const buf of slices) {
+    combined.set(new Uint8Array(buf), writeOffset);
+    writeOffset += buf.byteLength;
+  }
+  return combined.buffer;
+}
+
 export async function extractMp4CreationTime(
   file: File
 ): Promise<{ capturedAt: string; durationSeconds?: number } | null> {
-  if (file.size === 0) {
+  if (file.size < 8) {
+    return null;
+  }
+
+  const metadataBuffer = await extractIsomFtypAndMoov(file);
+  if (!metadataBuffer) {
     return null;
   }
 
@@ -194,41 +295,13 @@ export async function extractMp4CreationTime(
         finish(null);
       };
 
-      const chunkSize = 256 * 1024; // 256 KB slices
-      let offset = 0;
-
-      const readChunk = async () => {
-        if (settled || offset >= file.size) {
-          if (!settled) {
-            try {
-              mp4File.flush();
-            } catch {
-              // Ignore flush errors
-            }
-            finish(null);
-          }
-          return;
-        }
-
-        try {
-          const slice = file.slice(offset, Math.min(offset + chunkSize, file.size));
-          const ab = await readBlobAsArrayBuffer(slice);
-          const bufferWithStart = ab as MP4ArrayBufferWithStart;
-          bufferWithStart.fileStart = offset;
-          offset += ab.byteLength;
-
-          mp4File.appendBuffer(bufferWithStart);
-        } catch {
-          finish(null);
-          return;
-        }
-
-        if (!settled) {
-          setTimeout(readChunk, 0);
-        }
-      };
-
-      readChunk();
+      const bufferWithStart = metadataBuffer as MP4ArrayBufferWithStart;
+      bufferWithStart.fileStart = 0;
+      mp4File.appendBuffer(bufferWithStart);
+      mp4File.flush();
+      if (!settled) {
+        finish(null);
+      }
     } catch {
       resolve(null);
     }

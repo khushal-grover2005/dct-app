@@ -33,6 +33,40 @@ function isEditableElement(target: EventTarget | null): boolean {
   return target.isContentEditable;
 }
 
+function shouldAllowNativeSpace(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) {
+    return false;
+  }
+  const role = target.getAttribute('role');
+  if (role === 'option') {
+    return false;
+  }
+  const tag = target.tagName.toLowerCase();
+  if (tag === 'button' || tag === 'a' || tag === 'summary') {
+    return true;
+  }
+  if (tag === 'input') {
+    return (target as HTMLInputElement).type !== 'range';
+  }
+  return (
+    role === 'button' ||
+    role === 'checkbox' ||
+    role === 'menuitem' ||
+    role === 'switch' ||
+    role === 'tab'
+  );
+}
+
+function isSeparatorOrSlider(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) {
+    return false;
+  }
+  if (target.getAttribute('role') === 'separator') {
+    return true;
+  }
+  return target instanceof HTMLInputElement && target.type === 'range';
+}
+
 export const TaggingWorkspace: React.FC<TaggingWorkspaceProps> = ({
   controller,
   consentedList,
@@ -69,6 +103,13 @@ export const TaggingWorkspace: React.FC<TaggingWorkspaceProps> = ({
 
   const hasPrev = activeFilteredIndex > 0;
   const hasNext = activeFilteredIndex >= 0 && activeFilteredIndex < filteredAssets.length - 1;
+
+  const handleSelectAsset = useCallback(
+    (assetId: string) => {
+      dispatch({ type: 'SELECT_ASSET', assetId });
+    },
+    [dispatch]
+  );
 
   const goToPrevAsset = useCallback(() => {
     if (activeFilteredIndex > 0) {
@@ -113,15 +154,24 @@ export const TaggingWorkspace: React.FC<TaggingWorkspaceProps> = ({
           break;
         case 'ArrowUp':
         case 'ArrowLeft':
+          if (isSeparatorOrSlider(e.target)) {
+            return;
+          }
           e.preventDefault();
           goToPrevAsset();
           break;
         case 'ArrowDown':
         case 'ArrowRight':
+          if (isSeparatorOrSlider(e.target)) {
+            return;
+          }
           e.preventDefault();
           goToNextAsset();
           break;
         case ' ':
+          if (shouldAllowNativeSpace(e.target)) {
+            return;
+          }
           if (viewerActionsRef.current?.togglePlayPause) {
             e.preventDefault();
             e.stopPropagation();
@@ -216,7 +266,7 @@ export const TaggingWorkspace: React.FC<TaggingWorkspaceProps> = ({
   return (
     <div
       data-testid="tagging-workspace"
-      className="flex flex-col flex-1 h-[calc(100vh-65px)] min-h-[640px] bg-slate-100 overflow-hidden"
+      className="flex flex-col flex-1 min-h-0 bg-slate-100 overflow-hidden"
     >
       {/* Workspace Action & Status Bar */}
       <div className="bg-white border-b border-slate-200 px-4 py-2 flex items-center justify-between text-xs flex-shrink-0">
@@ -281,21 +331,21 @@ export const TaggingWorkspace: React.FC<TaggingWorkspaceProps> = ({
             )}
           </div>
 
-          <span className="text-slate-300">|</span>
+          <span aria-hidden="true" className="text-slate-400">|</span>
 
           {/* Progress Auto-Save Status */}
           <div
             data-testid="progress-save-status"
             className="flex items-center space-x-1.5 font-mono text-[11px]"
           >
-            <HardDrive className="w-3.5 h-3.5 text-slate-400" />
-            {saveStatus === 'saving' && <span className="text-amber-700">Saving progress...</span>}
+            <HardDrive className="w-3.5 h-3.5 text-slate-500" />
+            {saveStatus === 'saving' && <span className="text-amber-800">Saving progress...</span>}
             {saveStatus === 'saved' && (
               <span className="text-emerald-700">Progress saved (.dct-progress.json)</span>
             )}
-            {saveStatus === 'idle' && <span className="text-slate-500">Auto-save ready (1s)</span>}
+            {saveStatus === 'idle' && <span className="text-slate-600">Auto-save ready (1s)</span>}
             {saveStatus === 'error' && (
-              <span className="text-slate-500" title="Directory handle read-only or mock">
+              <span className="text-slate-600" title="Directory handle read-only or mock">
                 In-session state
               </span>
             )}
@@ -314,7 +364,7 @@ export const TaggingWorkspace: React.FC<TaggingWorkspaceProps> = ({
           typeFilter={state.typeFilter}
           searchQuery={state.assetSearchQuery}
           widthPx={leftWidth}
-          onSelectAsset={(assetId) => dispatch({ type: 'SELECT_ASSET', assetId })}
+          onSelectAsset={handleSelectAsset}
           onStatusFilterChange={(filter: TaggingFilterStatus) =>
             dispatch({ type: 'SET_STATUS_FILTER', filter })
           }
@@ -328,14 +378,33 @@ export const TaggingWorkspace: React.FC<TaggingWorkspaceProps> = ({
         {/* Left Resizer */}
         <div
           role="separator"
+          tabIndex={0}
           aria-orientation="vertical"
           aria-label="Resize asset list pane"
+          aria-valuemin={220}
+          aria-valuemax={440}
+          aria-valuenow={leftWidth}
           onPointerDown={(e) => {
             resizingRef.current = 'left';
             startXRef.current = e.clientX;
             startWidthRef.current = leftWidth;
           }}
-          className="w-1 bg-slate-200 hover:bg-sky-400 cursor-col-resize flex-shrink-0 transition-colors"
+          onKeyDown={(e) => {
+            if (e.key === 'ArrowLeft') {
+              e.preventDefault();
+              setLeftWidth((w) => clampWidth(w - 16, 220, 440));
+            } else if (e.key === 'ArrowRight') {
+              e.preventDefault();
+              setLeftWidth((w) => clampWidth(w + 16, 220, 440));
+            } else if (e.key === 'Home') {
+              e.preventDefault();
+              setLeftWidth(220);
+            } else if (e.key === 'End') {
+              e.preventDefault();
+              setLeftWidth(440);
+            }
+          }}
+          className="w-1 bg-slate-200 hover:bg-sky-400 focus:outline-none focus:bg-sky-600 focus:ring-2 focus:ring-sky-600 cursor-col-resize flex-shrink-0 transition-colors"
         />
 
         <CenterViewerPane
@@ -365,14 +434,33 @@ export const TaggingWorkspace: React.FC<TaggingWorkspaceProps> = ({
         {/* Right Resizer */}
         <div
           role="separator"
+          tabIndex={0}
           aria-orientation="vertical"
           aria-label="Resize people panel"
+          aria-valuemin={260}
+          aria-valuemax={480}
+          aria-valuenow={rightWidth}
           onPointerDown={(e) => {
             resizingRef.current = 'right';
             startXRef.current = e.clientX;
             startWidthRef.current = rightWidth;
           }}
-          className="w-1 bg-slate-200 hover:bg-sky-400 cursor-col-resize flex-shrink-0 transition-colors"
+          onKeyDown={(e) => {
+            if (e.key === 'ArrowLeft') {
+              e.preventDefault();
+              setRightWidth((w) => clampWidth(w + 16, 260, 480));
+            } else if (e.key === 'ArrowRight') {
+              e.preventDefault();
+              setRightWidth((w) => clampWidth(w - 16, 260, 480));
+            } else if (e.key === 'Home') {
+              e.preventDefault();
+              setRightWidth(260);
+            } else if (e.key === 'End') {
+              e.preventDefault();
+              setRightWidth(480);
+            }
+          }}
+          className="w-1 bg-slate-200 hover:bg-sky-400 focus:outline-none focus:bg-sky-600 focus:ring-2 focus:ring-sky-600 cursor-col-resize flex-shrink-0 transition-colors"
         />
 
         <PeoplePanel

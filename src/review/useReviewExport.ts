@@ -10,6 +10,7 @@ import {
 import {
   buildExportSheet,
   detectFilenamePiiWarnings,
+  generateUuidV4,
   triggerCsvDownload,
   writeExportSheetToDirectory,
 } from './sheetWriter';
@@ -120,6 +121,7 @@ export function useReviewExport({
   const [saveError, setSaveError] = useState<string | null>(null);
   const [lastSaved, setLastSaved] = useState<SaveSheetResult | null>(null);
   const lastSavedSignatureRef = useRef<string | null>(null);
+  const savedFileNamesRef = useRef<Set<string>>(new Set());
 
   const sheet = useMemo(
     () => buildExportSheet(assets, consentedList, collectionRef),
@@ -222,7 +224,28 @@ export function useReviewExport({
     setIsSaving(true);
     setSaveError(null);
     let written = false;
-    const freshSheet = buildExportSheet(assets, consentedList, collectionRef);
+
+    const existingNames = new Set<string>(savedFileNamesRef.current);
+    if (typeof directoryHandle.values === 'function') {
+      try {
+        for await (const entry of directoryHandle.values()) {
+          if (entry.kind === 'file') {
+            existingNames.add(entry.name);
+          }
+        }
+      } catch {
+        // Ignore directory listing failures on restricted/mock handles
+      }
+    }
+
+    const freshSheet = buildExportSheet(
+      assets,
+      consentedList,
+      collectionRef,
+      new Date(),
+      generateUuidV4(),
+      existingNames
+    );
     const validation = validateExportWithConsentedList(
       consentedList,
       freshSheet.csvText,
@@ -255,6 +278,7 @@ export function useReviewExport({
         freshSheet.fileName,
         freshSheet.csvText
       );
+      savedFileNamesRef.current.add(freshSheet.fileName);
       written = true;
       const entry: ProgressSaveEntry = {
         export_id: freshSheet.exportId,

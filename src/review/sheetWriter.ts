@@ -21,10 +21,26 @@ function formatExportedAt(date: Date): string {
   return date.toISOString().replace(/\.\d{3}Z$/, 'Z');
 }
 
-export function buildExportFileName(collectionRef: string, exportedAt: Date): string {
+export function buildExportFileName(
+  collectionRef: string,
+  exportedAt: Date,
+  existingNames?: ReadonlySet<string>
+): string {
   const safeRef = collectionRef.trim().replace(/[/\\:*?"<>|]/g, '_');
-  const timestamp = exportedAt.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
-  return `asset_export_${safeRef}_${timestamp}.csv`;
+  let cursorMs = exportedAt.getTime();
+
+  for (let attempt = 0; attempt < 60; attempt++) {
+    const candidateDate = new Date(cursorMs);
+    const timestamp = candidateDate.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
+    const candidateName = `asset_export_${safeRef}_${timestamp}.csv`;
+    if (!existingNames || !existingNames.has(candidateName)) {
+      return candidateName;
+    }
+    cursorMs += 1000;
+  }
+
+  const fallbackTs = exportedAt.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
+  return `asset_export_${safeRef}_${fallbackTs}_${exportedAt.getTime()}.csv`;
 }
 
 export function buildExportRows(
@@ -113,7 +129,8 @@ export function buildExportSheet(
   consentedList: ConsentedListResult,
   collectionRef: string,
   exportedAt = new Date(),
-  exportId = generateUuidV4()
+  exportId = generateUuidV4(),
+  existingNames?: ReadonlySet<string>
 ): ExportSheetBuildResult {
   const timestamp = formatExportedAt(exportedAt);
   const trimmedCollectionRef = collectionRef.trim();
@@ -133,7 +150,7 @@ export function buildExportSheet(
     exportId,
     exportedAt: timestamp,
     collectionRef: trimmedCollectionRef,
-    fileName: buildExportFileName(trimmedCollectionRef, exportedAt),
+    fileName: buildExportFileName(trimmedCollectionRef, exportedAt, existingNames),
     csvText,
     rows,
     heldAssets: [...new Set(
@@ -182,18 +199,19 @@ export function detectFilenamePiiWarnings(
   consentedList: ConsentedListResult
 ): FilenamePiiWarning[] {
   const activeAssets = assets.filter((asset) => asset.state === 'active');
+  const namePatterns = consentedList.people
+    .map((person) => person.displayName.trim())
+    .filter((name) => name.length > 0)
+    .map((name) => {
+      const tokens = name.split(/\s+/).filter(Boolean).map(escapeRegExp);
+      const joined = tokens.join('[\\s._-]+');
+      return new RegExp(`(^|[^\\p{L}\\p{N}])${joined}($|[^\\p{L}\\p{N}])`, 'iu');
+    });
+
   const warnings: FilenamePiiWarning[] = [];
 
   for (const asset of activeAssets) {
-    const containsName = consentedList.people.some((person) => {
-      const name = person.displayName.trim();
-      if (!name) return false;
-      const expression = new RegExp(
-        `(^|[^\\p{L}\\p{N}])${escapeRegExp(name)}($|[^\\p{L}\\p{N}])`,
-        'iu'
-      );
-      return expression.test(asset.assetId);
-    });
+    const containsName = namePatterns.some((expression) => expression.test(asset.assetId));
     if (containsName) {
       warnings.push({
         assetId: asset.assetId,

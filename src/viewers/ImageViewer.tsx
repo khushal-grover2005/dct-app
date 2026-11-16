@@ -156,7 +156,7 @@ export const ImageViewer: React.FC<ImageViewerProps> = ({
             type="button"
             data-testid="image-zoom-reset-btn"
             onClick={zoomReset}
-            aria-label="Reset zoom (0)"
+            aria-label="Fit (Reset zoom)"
             title="Reset zoom and pan (0)"
             className="inline-flex items-center space-x-1 px-2 py-1 rounded hover:bg-slate-700 transition"
           >

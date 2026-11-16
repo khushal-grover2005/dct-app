@@ -279,7 +279,7 @@ export const CenterViewerPane: React.FC<CenterViewerPaneProps> = ({
 
         {/* Navigation controls */}
         <div className="flex items-center space-x-2 flex-shrink-0">
-          <span className="text-xs font-mono text-slate-500 mr-1">
+          <span className="text-xs font-mono text-slate-600 mr-1">
             {activeIndex >= 0 ? activeIndex + 1 : 0} / {totalFilteredCount}
           </span>
           <button
@@ -288,7 +288,7 @@ export const CenterViewerPane: React.FC<CenterViewerPaneProps> = ({
             onClick={onPrev}
             disabled={!hasPrev}
             title="Previous asset (←)"
-            aria-label="Previous asset"
+            aria-label="Prev (Previous asset)"
             className="inline-flex items-center px-2.5 py-1.5 rounded border border-slate-300 bg-white text-xs font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition"
           >
             <ChevronLeft className="w-4 h-4" />
@@ -300,7 +300,7 @@ export const CenterViewerPane: React.FC<CenterViewerPaneProps> = ({
             onClick={onNext}
             disabled={!hasNext}
             title="Next asset (→)"
-            aria-label="Next asset"
+            aria-label="Next (Next asset)"
             className="inline-flex items-center px-2.5 py-1.5 rounded border border-slate-300 bg-white text-xs font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition"
           >
             <span>Next</span>

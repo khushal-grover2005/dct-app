@@ -203,7 +203,7 @@ export const PeoplePanel: React.FC<PeoplePanelProps> = ({
           {asset.personIds.length === 0 ? (
             <div
               data-testid="no-selected-people-msg"
-              className="text-xs text-slate-400 italic py-1.5 px-2.5 rounded bg-slate-50 border border-dashed border-slate-200"
+              className="text-xs text-slate-600 italic py-1.5 px-2.5 rounded bg-slate-50 border border-dashed border-slate-300"
             >
               No consented people selected yet.
             </div>
@@ -248,7 +248,7 @@ export const PeoplePanel: React.FC<PeoplePanelProps> = ({
           <div className="flex items-center justify-between">
             <div>
               <div className="text-xs font-semibold text-slate-800">Others in this asset</div>
-              <div className="text-[11px] text-slate-500">Bystanders (0–20) • Shortcut: b</div>
+              <div className="text-[11px] text-slate-600">Bystanders (0–20) • Shortcut: b</div>
             </div>
 
             <div className="flex items-center space-x-1.5">
@@ -344,7 +344,7 @@ export const PeoplePanel: React.FC<PeoplePanelProps> = ({
           </button>
 
           {cannotTurnOnNoPerson && !isLockedLifecycleState && (
-            <p className="text-[11px] text-slate-500 px-1">
+            <p className="text-[11px] text-slate-600 px-1">
               Clear selected people and bystanders to enable &quot;No person&quot;.
             </p>
           )}
@@ -359,11 +359,11 @@ export const PeoplePanel: React.FC<PeoplePanelProps> = ({
             >
               Consented List ({consentedList.totalCount})
             </label>
-            <span className="text-[11px] text-slate-400">Key: / to focus</span>
+            <span className="text-[11px] text-slate-600">Key: / to focus</span>
           </div>
 
           <div className="relative">
-            <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2.5 pointer-events-none" />
+            <Search className="w-3.5 h-3.5 text-slate-500 absolute left-2.5 top-2.5 pointer-events-none" />
             <input
               ref={searchInputRef}
               id="participant-search-input"
@@ -382,9 +382,9 @@ export const PeoplePanel: React.FC<PeoplePanelProps> = ({
             className="divide-y divide-slate-100 border border-slate-200 rounded-lg overflow-hidden"
           >
             {evaluatedPeople.length === 0 ? (
-              <div className="p-4 text-center text-xs text-slate-500 space-y-1">
+              <div className="p-4 text-center text-xs text-slate-600 space-y-1">
                 <p>No matching participants in consented list.</p>
-                <p className="text-[11px] text-slate-400">
+                <p className="text-[11px] text-slate-600">
                   Anyone not on the list cannot be added and must be counted as a bystander above.
                 </p>
               </div>
@@ -398,7 +398,7 @@ export const PeoplePanel: React.FC<PeoplePanelProps> = ({
                     key={person.personId}
                     data-testid={`people-list-row-${person.personId}`}
                     className={`px-3 py-2.5 flex items-center justify-between gap-2 ${
-                      !selectability.isSelectable ? 'bg-slate-50 opacity-70' : 'bg-white'
+                      !selectability.isSelectable ? 'bg-slate-100' : 'bg-white'
                     }`}
                   >
                     <div className="min-w-0 flex-1">
@@ -407,7 +407,7 @@ export const PeoplePanel: React.FC<PeoplePanelProps> = ({
                       </div>
                       <div className="flex flex-wrap items-center gap-1.5 mt-0.5">
                         {person.contactHint && (
-                          <span className="text-[11px] text-slate-500">
+                          <span className="text-[11px] text-slate-600">
                             {person.contactHint}
                           </span>
                         )}
@@ -416,8 +416,8 @@ export const PeoplePanel: React.FC<PeoplePanelProps> = ({
                             data-testid={`non-selectable-reason-${person.personId}`}
                             className={`px-1.5 py-0.5 rounded text-[10px] font-medium border ${
                               selectability.reason === 'minor'
-                                ? 'bg-rose-50 text-rose-700 border-rose-200'
-                                : 'bg-amber-50 text-amber-800 border-amber-200'
+                                ? 'bg-rose-50 text-rose-800 border-rose-200'
+                                : 'bg-amber-50 text-amber-900 border-amber-200'
                             }`}
                           >
                             {selectability.formattedReason}
@@ -440,8 +440,13 @@ export const PeoplePanel: React.FC<PeoplePanelProps> = ({
                           type="button"
                           data-testid={`select-person-btn-${person.personId}`}
                           disabled={isDisabledByNoPerson}
-                          onClick={() => onAddPerson(person.personId, true)}
-                          className="px-2.5 py-1 rounded text-xs font-medium bg-slate-900 text-white hover:bg-slate-800 disabled:bg-slate-200 disabled:text-slate-400 disabled:cursor-not-allowed transition flex-shrink-0"
+                          onClick={(e) => {
+                            onAddPerson(person.personId, true);
+                            if (e.detail === 0) {
+                              searchInputRef.current?.focus();
+                            }
+                          }}
+                          className="px-2.5 py-1 rounded text-xs font-medium bg-slate-900 text-white hover:bg-slate-800 disabled:bg-slate-200 disabled:text-slate-600 disabled:cursor-not-allowed transition flex-shrink-0"
                         >
                           Select
                         </button>
