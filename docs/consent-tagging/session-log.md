@@ -11,6 +11,7 @@
   - Deletion requests: paste or load `asset_id`s, categorize found vs not found in folder, single-confirmation batch removal, and `deleted` correction rows (R-35, R-36).
   - Correction export: builds and validates a correction-only sheet with same `collection_ref`, new `export_id`, collision-safe filename, and `.dct-progress.json` `saves[]` tracking (R-33).
 - Added unit tests (`tests/unit/folder/progressReader.test.ts`, `tests/unit/corrections/correctionSheetWriter.test.ts`, `tests/unit/corrections/useCorrections.test.tsx`, `tests/unit/tagging/resumeReducer.test.ts`) and Chromium E2E tests (`e2e/corrections-resume.spec.ts`) covering T-10, T-11, T-12, and R-37.
+- Documented Increment 4 implementation details and full Increments 1–4 system architecture in `docs/consent-tagging/increment-4-summary.md`.
 
 ### Tests Passing
 - `npm run lint` (`eslint . --max-warnings 0`): passes (0 errors, 0 warnings).
