@@ -5,6 +5,17 @@ import fs from 'fs';
 
 const REAL_ROOT = fs.realpathSync(__dirname);
 
+// On Windows directory junctions (e.g. C:\... -> D:\...), Vite's dep optimizer
+// uses process.cwd() as esbuild absWorkingDir while cacheDir lives under root.
+// Aligning cwd to the canonical project root prevents cross-drive path mismatches.
+try {
+  if (fs.realpathSync(process.cwd()) === REAL_ROOT && process.cwd() !== REAL_ROOT) {
+    process.chdir(REAL_ROOT);
+  }
+} catch {
+  // Ignore if cwd cannot be inspected or changed.
+}
+
 const CSP_POLICY =
   "default-src 'self'; img-src 'self' blob:; media-src blob:; frame-src blob:; object-src 'none'; connect-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'";
 

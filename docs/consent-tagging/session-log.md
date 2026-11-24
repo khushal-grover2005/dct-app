@@ -1,5 +1,25 @@
 # Session Log
 
+## 2026-11-24 — Vite Windows Junction Dev Fix & Comprehensive README Update
+
+### What Changed
+- **Windows junction dev server fix (`vite.config.ts`)**: Aligned `process.cwd()` to `REAL_ROOT` (`fs.realpathSync(__dirname)`) when `process.cwd()` resolves to `REAL_ROOT` via a cross-drive Windows directory junction, fixing Vite 5's dev dependency optimizer crash (`TypeError: Cannot read properties of undefined (reading 'imports')`) on initial dashboard load while remaining a no-op on non-junctioned directories.
+- **Repository documentation (`README.md`)**: Replaced the pre-Increment-1 specification-pack README with full project documentation covering all 5 completed increments, core privacy/air-gap/data-integrity invariants, all 4 screen previews (`docs/consent-tagging/images/`), quick-start & script reference, complete annotated repository and module structure (`src/`, `tests/`, `e2e/`, `tools/`, `docs/`), in-folder data contract artifacts, Windows tooling notes, and full documentation index.
+
+### Tests Passing
+- `npx tsc --noEmit`: passes (0 errors).
+- `npm run lint` (`eslint . --max-warnings 0`): passes (0 errors, 0 warnings).
+- `npm run build` (`tsc --noEmit && vite build`): passes cleanly (`1648` modules transformed).
+- `python -m unittest tools/test_validate_export.py`: **20/20 pass**.
+- `npm test` (`vitest run`): **355/355 pass across 28/28 test files** (including all 56 golden-case parity assertions).
+- `npm run dev` + Chromium smoke load at `http://127.0.0.1:5173/`: boots cleanly (`HEADING: Data Collection Tool`, 0 page errors, 0 dev server crashes).
+
+### Deferred
+- `npm run e2e` was not re-run in this session (last passed 50 passed / 24 skipped on commit `695d3d2`; no application runtime `src/` code changed here).
+
+### Questions Added
+- None.
+
 ## 2026-11-16 — Increment 5: Finish, Keyboard & Accessibility, Scale, Warnings & Documentation
 
 ### What Changed
